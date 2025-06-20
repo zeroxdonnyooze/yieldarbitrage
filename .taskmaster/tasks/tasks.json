@@ -1,0 +1,655 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Core System Setup & Graph Engine Foundation",
+        "description": "Initialize Python project (Python 3.11+), FastAPI, SQLAlchemy, PostgreSQL, and Redis. Implement core graph data structures: `UniversalYieldGraph`, `YieldGraphEdge` (with `source_asset_id`, `target_asset_id`, `edge_type`, `protocol`, `chain`, `constraints`, `state`), and `EdgeState` (including `conversion_rate`, `liquidity`, `gas_cost_usd`, `delta_exposure`, `last_updated`).",
+        "details": "```python\n# main.py\n# from fastapi import FastAPI\n# app = FastAPI()\n# async def lifespan(app: FastAPI):\n#   await setup_database_pool()\n#   await setup_redis_pool()\n#   yield\n#   await close_database_pool()\n#   await close_redis_pool()\n\n# graph_engine/models.py\nfrom enum import Enum\nfrom typing import Dict, List, Optional\nfrom pydantic import BaseModel\n\nclass EdgeType(str, Enum):\n    TRADE = \"TRADE\"\n    SPLIT = \"SPLIT\"\n    COMBINE = \"COMBINE\"\n    BRIDGE = \"BRIDGE\"\n    LEND = \"LEND\"\n    BORROW = \"BORROW\"\n    STAKE = \"STAKE\"\n    WAIT = \"WAIT\"\n    SHORT = \"SHORT\"\n\nclass EdgeConstraints(BaseModel):\n    min_input_amount: Optional[float] = None\n    max_input_amount: Optional[float] = None\n\nclass EdgeState(BaseModel):\n    conversion_rate: Optional[float] = None\n    liquidity_usd: Optional[float] = None\n    gas_cost_usd: Optional[float] = None\n    delta_exposure: Optional[Dict[str, float]] = None # e.g., {\"ETH\": 1.0}\n    last_updated_timestamp: Optional[float] = None\n    confidence_score: float = 1.0 # 0.0 to 1.0\n\nclass YieldGraphEdge(BaseModel):\n    edge_id: str # Unique identifier: e.g., ETH_MAINNET_UNISWAPV3_TRADE_WETH_USDC\n    source_asset_id: str # e.g., ETH_MAINNET_0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\n    target_asset_id: str\n    edge_type: EdgeType\n    protocol_name: str\n    chain_name: str\n    constraints: EdgeConstraints = EdgeConstraints()\n    state: EdgeState = EdgeState()\n\n    # Placeholder for calculation logic, to be refined in protocol adapters\n    def calculate_output(self, input_amount: float, current_state: EdgeState) -> Dict:\n        # This will be highly dependent on edge_type and protocol\n        # For a TRADE, it might use current_state.conversion_rate and estimate slippage\n        if current_state.conversion_rate is None: return {\"output_amount\": 0.0, \"error\": \"Missing conversion rate\"}\n        output = input_amount * current_state.conversion_rate\n        # Simplified slippage & fee deduction (example)\n        slippage_fee_factor = 0.997 # (1 - 0.003 for typical fee)\n        return {\"output_amount\": output * slippage_fee_factor, \"gas_cost_usd\": current_state.gas_cost_usd or 5.0}\n\nclass UniversalYieldGraph:\n    def __init__(self):\n        self.nodes: set[str] = set()  # asset_ids\n        self.edges: Dict[str, YieldGraphEdge] = {} # edge_id -> YieldGraphEdge\n        self.adj: Dict[str, List[YieldGraphEdge]] = defaultdict(list)\n\n    def add_edge(self, edge: YieldGraphEdge):\n        if edge.edge_id not in self.edges:\n            self.edges[edge.edge_id] = edge\n            self.nodes.add(edge.source_asset_id)\n            self.nodes.add(edge.target_asset_id)\n            self.adj[edge.source_asset_id].append(edge)\n```\nSetup PostgreSQL with basic tables for config. Setup Redis connection pool.",
+        "testStrategy": "Unit tests for Pydantic model instantiation and validation. Basic DB and Redis connectivity checks via health endpoints in FastAPI. Verify `UniversalYieldGraph` can add and retrieve edges.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize Python Project Environment",
+            "description": "Set up the Python project using Poetry or PDM, configure linters (e.g., Ruff, Flake8), formatters (e.g., Black, Ruff Formatter), and ensure the project uses Python 3.11+.",
+            "dependencies": [],
+            "details": "Create pyproject.toml, configure linting/formatting tools (e.g., pre-commit hooks), set up basic directory structure (e.g., src/), and initialize version control (e.g., Git).",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Set Up Basic FastAPI Application Structure",
+            "description": "Initialize a FastAPI application with a basic structure, including the main application instance and configuration for lifespan events to manage resources like database and Redis connections.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create main.py for the FastAPI app, define startup/shutdown event handlers within lifespan context manager for resource initialization/cleanup, and set up initial API router placeholders.",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Integrate SQLAlchemy and PostgreSQL",
+            "description": "Configure SQLAlchemy for asynchronous communication with a PostgreSQL database. This includes setting up an async engine, session management, and initializing Alembic for database schema migrations.",
+            "dependencies": [
+              2
+            ],
+            "details": "Define database connection URL (from environment variables), create SQLAlchemy async engine and sessionmaker. Implement a FastAPI dependency to provide sessions to path operations. Run `alembic init` and configure `env.py` for async migrations.",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Integrate Redis for Asynchronous Operations",
+            "description": "Set up an asynchronous connection pool for Redis and integrate it into the FastAPI application, typically managed via lifespan events.",
+            "dependencies": [
+              2
+            ],
+            "details": "Configure Redis connection parameters (from environment variables), implement an async Redis connection pool (e.g., using `redis-py` async capabilities), and make it accessible within the FastAPI application, managing its lifecycle via lifespan events.",
+            "status": "done"
+          },
+          {
+            "id": 5,
+            "title": "Implement Core Graph Pydantic Models",
+            "description": "Define the core Pydantic models that represent the graph structure, such as `UniversalYieldGraph`, `YieldGraphEdge`, and `EdgeState`, along with any associated enums.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create Python modules for these models (e.g., in a `models` or `schemas` directory). Ensure proper type hinting, validation rules, and consider serialization/deserialization needs (e.g., `model_config` for ORM mode if applicable later).",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Blockchain Interaction Layer & EVM Node Setup",
+        "description": "Integrate Web3.py (async version) and Multicall.py. Configure connections to Alchemy/Infura for Ethereum, Arbitrum, Base, Sonic, and Berachain. Implement utility functions for common asynchronous read operations (e.g., `get_balance`, `get_block_number`, `get_gas_price`, batch contract reads).",
+        "details": "```python\n# blockchain_connector/provider.py\nfrom web3 import AsyncWeb3\nfrom web3.providers.async_http import AsyncHTTPProvider\nfrom multicall import Multicall # Ensure async compatibility or use an async version\n\nEVM_NODE_PROVIDERS = {\n    \"ethereum\": \"YOUR_ALCHEMY_ETH_MAINNET_URL\",\n    \"arbitrum\": \"YOUR_ALCHEMY_ARBITRUM_MAINNET_URL\",\n    \"base\": \"YOUR_ALCHEMY_BASE_MAINNET_URL\",\n    # Add Sonic, Berachain when available and if they use standard EVM RPC\n}\n\nclass BlockchainProvider:\n    def __init__(self):\n        self.web3_instances: Dict[str, AsyncWeb3] = {\n            chain: AsyncWeb3(AsyncHTTPProvider(url))\n            for chain, url in EVM_NODE_PROVIDERS.items() if url\n        }\n\n    async def get_web3(self, chain_name: str) -> Optional[AsyncWeb3]:\n        return self.web3_instances.get(chain_name)\n\n    async def get_current_gas_price(self, chain_name: str) -> Optional[int]:\n        w3 = await self.get_web3(chain_name)\n        if w3: return await w3.eth.gas_price\n        return None\n\n    async def batch_read_contracts(self, chain_name: str, calls: list) -> Optional[dict]:\n        w3 = await self.get_web3(chain_name)\n        if w3:\n            # Assuming an async-compatible Multicall library or custom implementation\n            # mc = Multicall(w3=w3, calls=calls) \n            # return await mc.call() # This needs to be async\n            # For now, simulate with sequential calls or find an async multicall package\n            results = {}\n            for call_key, contract_address, function_signature, *args in calls:\n                 contract = w3.eth.contract(address=contract_address, abi=[...]) # ABI needed\n                 # result = await contract.functions.myFunction(*args).call()\n                 # results[call_key] = result\n            return results # Placeholder for actual async multicall\n        return None\n```\nEnsure environment variables are used for API keys/URLs.",
+        "testStrategy": "Test connections to node providers for Ethereum, Arbitrum, Base, Sonic, and Berachain. Successfully fetch current block number and gas prices for each. Implement a mock multicall test if an async library isn't immediately available.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Setup Async Web3.py and `BlockchainProvider` Class",
+            "description": "Integrate the asynchronous version of Web3.py into the project. Define and implement the initial structure for the `BlockchainProvider` class, which will encapsulate blockchain interaction logic and manage connections.",
+            "dependencies": [],
+            "details": "This includes installing async Web3.py, setting up basic async event loop handling if necessary, and defining the `BlockchainProvider` class with methods for initializing connections and handling different chains.\n<info added on 2025-06-20T15:20:20.451Z>\nSuccessfully implemented and tested. `BlockchainProvider` created with async Web3 support for Ethereum, Arbitrum, Base, Sonic, and Berachain chains. Implemented comprehensive unit tests (18 tests passed) and validation scripts. All blockchain connections are working properly with real RPC endpoints.\n</info added on 2025-06-20T15:20:20.451Z>",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Configure and Test EVM Node Connectivity",
+            "description": "Implement configuration management for EVM node providers (e.g., Alchemy, Infura) for specified chains (Ethereum, Arbitrum, Base, Sonic, Berachain). Develop and execute connectivity tests for each configured provider and chain, ensuring graceful error handling for missing configurations or unreachable nodes.",
+            "dependencies": [
+              1
+            ],
+            "details": "Tasks include: securely managing API keys/RPC URLs, implementing connection logic within `BlockchainProvider` for each chain, writing tests to verify successful connection and basic RPC calls (e.g., `eth_chainId`).\n<info added on 2025-06-20T15:29:19.671Z>\nSuccessfully configured Alchemy RPC endpoints for all 5 chains (Ethereum, Arbitrum, Base, Sonic, Berachain). Updated .env with production Alchemy URLs using API key. All connectivity tests passing. Fixed Berachain chain ID to 80094 (mainnet). EVM node connectivity is now production-ready with higher rate limits and better reliability than public RPC endpoints.\n</info added on 2025-06-20T15:29:19.671Z>",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Implement Async Multicall/Batch Call Functionality",
+            "description": "Research available asynchronous Multicall libraries compatible with async Web3.py. If a suitable, lightweight library is found, integrate it. Otherwise, develop a basic asynchronous batch call wrapper to bundle multiple read-only contract calls into fewer HTTP requests.",
+            "dependencies": [
+              1
+            ],
+            "details": "Focus on solutions that work with the chosen async Web3.py version. If developing a custom wrapper, ensure it can handle multiple calls to different contracts and functions in a single batch request where supported by the Multicall pattern.\n<info added on 2025-06-20T17:34:19.408Z>\nSuccessfully implemented comprehensive async multicall functionality with AsyncMulticallProvider. Supports multiple backends: banteg/multicall.py with asyncio.to_thread adapter, custom multicall contract implementation, AsyncWeb3 native batch_requests, and individual calls fallback. Includes convenience methods for token balances and contract data, plus benchmarking capabilities. All tests passing.\n</info added on 2025-06-20T17:34:19.408Z>",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Implement and Test Core Blockchain Utility Functions",
+            "description": "Develop and thoroughly test essential utility functions: `get_balance`, `get_block_number`, `get_gas_price`. Additionally, implement and test a `batch_read_contracts` function, utilizing the Multicall/batch wrapper from subtask 3 for efficiency.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Functions should be part of the `BlockchainProvider` class. Testing should cover various scenarios, including different chains and expected return values. The `batch_read_contracts` function should demonstrate the use of the async batching mechanism.",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Initial Protocol Integration (Uniswap V3 - Ethereum)",
+        "description": "Implement a `ProtocolAdapter` base class and a concrete `UniswapV3Adapter` for Ethereum. This adapter should discover `TRADE` pools (e.g., WETH/USDC, WBTC/WETH) meeting token filtering criteria ($1M MC, $50k DV, $100k TVL). Implement `update_edge_state` to fetch pool liquidity and use the Uniswap V3 Quoter contract to get `conversion_rate` for `EdgeState`.",
+        "details": "```python\n# protocols/base_adapter.py\nfrom abc import ABC, abstractmethod\nfrom typing import List\nfrom graph_engine.models import YieldGraphEdge, EdgeState\n\nclass ProtocolAdapter(ABC):\n    def __init__(self, chain_name: str, provider: 'BlockchainProvider'):\n        self.chain_name = chain_name\n        self.provider = provider\n\n    @abstractmethod\n    async def discover_edges(self) -> List[YieldGraphEdge]: pass\n\n    @abstractmethod\n    async def update_edge_state(self, edge: YieldGraphEdge) -> EdgeState: pass\n\n# protocols/uniswap_v3_adapter.py\n# from web3.utils.address import to_checksum_address\n# UNISWAP_V3_FACTORY_ETH = \"0x1F98431c8aD98523631AE4a59f267346ea31F984\"\n# UNISWAP_V3_QUOTER_ETH = \"0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6\"\n# QUOTER_ABI = [...] # Minimal ABI for quoteExactInputSingle\n\nclass UniswapV3Adapter(ProtocolAdapter):\n    PROTOCOL_NAME = \"UniswapV3\"\n\n    def __init__(self, chain_name: str, provider: 'BlockchainProvider'):\n        super().__init__(chain_name, provider)\n        # Load relevant contract addresses for the chain\n        self.factory_address = ...\n        self.quoter_address = ...\n\n    async def discover_edges(self) -> List[YieldGraphEdge]:\n        # 1. Fetch list of pools from factory (e.g., by listening to PoolCreated events or using a data source like TheGraph)\n        # 2. For each pool (tokenA, tokenB, fee):\n        #    a. Apply TokenFilter (check market cap, daily volume, pool TVL from external API like CoinGecko/DeFiLlama)\n        #    b. If passes, create two YieldGraphEdge objects (A->B and B->A)\n        #       edge_id = f\"{self.chain_name}_{self.PROTOCOL_NAME}_TRADE_{tokenA_symbol}_{tokenB_symbol}_{fee}\"\n        #       source_asset_id = f\"{self.chain_name}_{tokenA_address}\"\n        #       target_asset_id = f\"{self.chain_name}_{tokenB_address}\"\n        #       edge = YieldGraphEdge(edge_id=..., source_asset_id=..., ..., protocol_name=self.PROTOCOL_NAME, chain_name=self.chain_name)\n        # Return list of edges\n        return [] # Placeholder\n\n    async def update_edge_state(self, edge: YieldGraphEdge) -> EdgeState:\n        w3 = await self.provider.get_web3(self.chain_name)\n        if not w3 or edge.edge_type != EdgeType.TRADE: return edge.state\n\n        token_in_address = edge.source_asset_id.split('_')[-1]\n        token_out_address = edge.target_asset_id.split('_')[-1]\n        # Fee tier needs to be part of edge_id or edge properties\n        # fee = int(edge.edge_id.split('_')[-1]) \n        # amount_in = 10**token_in_decimals # Standard amount for rate calculation\n\n        # quoter = w3.eth.contract(address=to_checksum_address(self.quoter_address), abi=QUOTER_ABI)\n        # quoted_amount_out = await quoter.functions.quoteExactInputSingle(\n        #    token_in_address, token_out_address, fee, amount_in, 0\n        # ).call()\n        # conversion_rate = quoted_amount_out / amount_in\n        # Fetch liquidity, estimate gas cost (e.g., using w3.eth.estimate_gas for a swap)\n        # return EdgeState(conversion_rate=conversion_rate, liquidity_usd=..., gas_cost_usd=..., last_updated_timestamp=time.time())\n        return edge.state # Placeholder\n```\nTokenFilter logic: Use CoinGecko/DeFiLlama APIs for market cap, volume, TVL. Cache this data.",
+        "testStrategy": "Verify adapter discovers a predefined set of Uniswap V3 pools on Ethereum. `update_edge_state` results for `conversion_rate` should closely match rates from Uniswap interface or Etherscan for small test amounts. Token filtering correctly includes/excludes pools based on criteria.",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define and Manage Uniswap V3 ABIs",
+            "description": "Define and manage ABIs for Uniswap V3 Factory and Quoter contracts on Ethereum. This includes sourcing, storing, and providing access to these ABIs for contract interaction.",
+            "dependencies": [],
+            "details": "Define and manage ABIs for Uniswap V3 Factory and Quoter contracts.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Design and Implement ProtocolAdapter ABC",
+            "description": "Design and implement the `ProtocolAdapter` abstract base class. This class will define the common interface and core functionalities for all protocol integrations.",
+            "dependencies": [],
+            "details": "Design and implement the `ProtocolAdapter` abstract base class.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Implement Token Filtering Logic with External APIs",
+            "description": "Develop and implement a module for token filtering based on criteria like market cap, volume, and TVL. This involves integrating with CoinGecko/DeFiLlama APIs and implementing caching mechanisms for external data.",
+            "dependencies": [],
+            "details": "Implement token filtering logic, including integration with CoinGecko/DeFiLlama APIs for market cap, volume, TVL, and caching.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Implement UniswapV3Adapter Class Structure",
+            "description": "Implement the `UniswapV3Adapter` class, inheriting from `ProtocolAdapter` (Task 2). This includes initialization with Ethereum-specific contract addresses (using ABIs from Task 1) and necessary configurations for Uniswap V3.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement the `UniswapV3Adapter` class structure, including initialization with chain-specific contract addresses.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Develop Uniswap V3 Pool Discovery Logic (Ethereum)",
+            "description": "Develop logic within the `UniswapV3Adapter` (Task 4) to discover Uniswap V3 pools on Ethereum. This may involve using factory contract events (leveraging ABIs from Task 1) or a subgraph for efficient pool identification.",
+            "dependencies": [
+              4
+            ],
+            "details": "Develop pool discovery logic for Uniswap V3 on Ethereum (e.g., using factory events or a subgraph).",
+            "status": "pending"
+          },
+          {
+            "id": 6,
+            "title": "Implement `update_edge_state` for Uniswap V3",
+            "description": "Implement the `update_edge_state` method within `UniswapV3Adapter` (Task 4). This method will use the Uniswap V3 Quoter contract (via ABIs from Task 1) to fetch `conversion_rate` and liquidity for pools discovered (Task 5) and potentially refined by token filtering logic (Task 3).",
+            "dependencies": [
+              3,
+              4,
+              5
+            ],
+            "details": "Implement `update_edge_state` method using the Uniswap V3 Quoter contract for `conversion_rate` and fetching liquidity.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Smart Data Collection Engine - Initial Implementation",
+        "description": "Implement `HybridDataCollector` to manage data updates. It should iterate through registered `ProtocolAdapter` instances, call `discover_edges` to populate the `UniversalYieldGraph`, and then periodically call `update_edge_state` for all relevant edges. Store fetched `EdgeState` in Redis, keyed by `edge_id`. Implement a basic update strategy (e.g., critical edges every 30s, others every 5 mins).",
+        "details": "```python\n# data_collector/collector.py\nimport asyncio\nimport time\nfrom typing import List\n# import redis.asyncio as redis # From main app context\nfrom graph_engine.models import UniversalYieldGraph, EdgeState\nfrom protocols.base_adapter import ProtocolAdapter\n\nclass HybridDataCollector:\n    def __init__(self, graph: UniversalYieldGraph, redis_client, adapters: List[ProtocolAdapter]):\n        self.graph = graph\n        self.redis_client = redis_client\n        self.adapters = adapters\n        self.edge_update_intervals = {\n            \"critical\": 30,  # seconds\n            \"important\": 300, # 5 minutes\n            \"low_activity\": 3600 # 1 hour\n        }\n\n    async def initialize_graph(self):\n        for adapter in self.adapters:\n            discovered_edges = await adapter.discover_edges()\n            for edge in discovered_edges:\n                self.graph.add_edge(edge)\n                # Initial state update\n                updated_state = await adapter.update_edge_state(edge)\n                edge.state = updated_state\n                await self.redis_client.set(f\"edge_state:{edge.edge_id}\", updated_state.json())\n\n    async def run_update_cycle(self):\n        # Categorize edges or use a simpler global update for now\n        for edge_id, edge in self.graph.edges.items():\n            # Find adapter responsible for this edge\n            adapter_for_edge = next((adapter for adapter in self.adapters if adapter.PROTOCOL_NAME == edge.protocol_name and adapter.chain_name == edge.chain_name), None)\n            if adapter_for_edge:\n                try:\n                    updated_state = await adapter_for_edge.update_edge_state(edge)\n                    edge.state = updated_state # Update in-memory graph too\n                    await self.redis_client.set(f\"edge_state:{edge.edge_id}\", updated_state.json())\n                except Exception as e:\n                    # Log error, potentially mark edge state as stale/low confidence\n                    print(f\"Error updating edge {edge_id}: {e}\")\n                    edge.state.confidence_score = 0.1 # Example\n                    await self.redis_client.set(f\"edge_state:{edge.edge_id}\", edge.state.json())\n\n    async def start(self):\n        await self.initialize_graph()\n        while True:\n            await self.run_update_cycle()\n            await asyncio.sleep(self.edge_update_intervals[\"critical\"]) # Simplistic: update all at critical interval for now\n```",
+        "testStrategy": "Verify Redis is populated with `EdgeState` data for edges from integrated protocols. Data should refresh according to defined intervals. Monitor logs for errors during data collection. Ensure `confidence_score` is updated on failures.",
+        "priority": "high",
+        "dependencies": [
+          1,
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define `HybridDataCollector` Class Structure and Initialization",
+            "description": "Implement the core `HybridDataCollector` class, including its constructor (`__init__`), methods for adapter registration, and essential internal attributes. This forms the foundational structure of the engine.",
+            "dependencies": [],
+            "details": "Focus on class definition, adapter management (e.g., a list or dictionary of adapters), and initialization parameters (e.g., update interval, Redis connection details if passed in).",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Redis Integration for `EdgeState` Management",
+            "description": "Develop utility functions or a dedicated class to handle the storage and retrieval of `EdgeState` objects in Redis. This includes serialization/deserialization of `EdgeState` data and using `edge_id` as the key.",
+            "dependencies": [],
+            "details": "Ensure robust connection handling to Redis. Define the structure of `EdgeState` if not already defined, and how it will be stored (e.g., JSON string, HASH). Implement `get_edge_state(edge_id)` and `set_edge_state(edge_id, state)` functions/methods.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Develop `initialize_graph` Method for Edge Discovery and Initial State",
+            "description": "Implement the `initialize_graph` method within `HybridDataCollector`. This method will iterate through registered adapters, discover all available edges, fetch their initial states, and store these states in Redis using the `EdgeState` management component.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "This method should handle communication with adapters to get edge definitions. For each discovered edge, an initial `EdgeState` should be created and persisted. Consider how to handle adapters that might be slow or unresponsive during initialization.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Implement `run_update_cycle` Method for Periodic State Updates",
+            "description": "Develop the `run_update_cycle` method in `HybridDataCollector`. This method will periodically trigger data collection for all relevant edges based on a defined strategy (e.g., round-robin, priority-based), update their `EdgeState` in Redis, and manage the timing of these updates.",
+            "dependencies": [
+              3
+            ],
+            "details": "This involves setting up a loop or scheduling mechanism (e.g., using `asyncio` for asynchronous operations). The update strategy needs to be considered (e.g., how often to update, which edges to update). Ensure fetched data is used to update the `EdgeState` and persisted.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Implement Basic Error Handling and Confidence Score Updates",
+            "description": "Integrate basic error handling mechanisms within the data collection process (primarily in `run_update_cycle`). Implement logic to update confidence scores for `EdgeState` based on the success or failure of data collection attempts.",
+            "dependencies": [
+              4
+            ],
+            "details": "Error handling should catch exceptions during adapter communication or data processing. Confidence score logic should define how scores are incremented on success and decremented on failure, potentially with limits. This information should be part of the `EdgeState`.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Basic Pathfinding (Beam Search - Non-ML)",
+        "description": "Implement `BeamSearchOptimizer` as per PRD. Use a simple, non-ML scoring function initially (e.g., based on maximizing output for a given input, penalizing high gas costs, preferring higher liquidity). Focus on finding paths of `TRADE` edges. Max path length 8-10 edges. Beam width configurable (e.g., 50).",
+        "details": "```python\n# pathfinding/beam_search.py\nfrom typing import List, Tuple, Dict\nfrom graph_engine.models import UniversalYieldGraph, YieldGraphEdge, EdgeState\n# import redis.asyncio as redis\n\nclass BeamSearchOptimizer:\n    def __init__(self, graph: UniversalYieldGraph, redis_client):\n        self.graph = graph\n        self.redis_client = redis_client\n        self.MAX_PATH_LENGTH = 10\n\n    async def _get_edge_state(self, edge_id: str) -> Optional[EdgeState]:\n        state_json = await self.redis_client.get(f\"edge_state:{edge_id}\")\n        if state_json: return EdgeState.parse_raw(state_json)\n        return None\n\n    async def _score_path_candidate(self, current_amount_out: float, edge: YieldGraphEdge, next_edge_state: EdgeState) -> float:\n        # Simple score: net amount out after this edge, normalized by gas\n        # This needs to be more sophisticated, e.g. using log-returns for multiplicative effects\n        if next_edge_state.conversion_rate is None or next_edge_state.gas_cost_usd is None:\n            return -float('inf')\n        # Assume input amount for scoring is normalized (e.g. 1 unit of source asset)\n        # This scoring is per-edge, path score is cumulative product of rates\n        return next_edge_state.conversion_rate * (1 - (next_edge_state.gas_cost_usd / 1000)) # Arbitrary scaling for gas\n\n    async def search(self, start_asset_id: str, input_amount: float, beam_width: int = 50) -> List[List[YieldGraphEdge]]:\n        # Beam stores tuples of (current_cumulative_score, current_path_output_amount, path_list_of_edges)\n        beam: List[Tuple[float, float, List[YieldGraphEdge]]] = [(1.0, input_amount, [])]\n        profitable_paths: List[List[YieldGraphEdge]] = []\n\n        for depth in range(self.MAX_PATH_LENGTH):\n            candidates = []\n            for score, current_val, current_path in beam:\n                last_asset_id = current_path[-1].target_asset_id if current_path else start_asset_id\n                if last_asset_id not in self.graph.adj: continue\n\n                for edge in self.graph.adj[last_asset_id]:\n                    edge_state = await self._get_edge_state(edge.edge_id)\n                    if not edge_state or edge_state.confidence_score < 0.5: continue\n                    \n                    # Simulate this step's output\n                    # This is simplified; proper simulation is in PathSimulator\n                    step_output = edge.calculate_output(current_val, edge_state)\n                    if \"error\" in step_output or step_output[\"output_amount\"] <= 0: continue\n                    \n                    new_val = step_output[\"output_amount\"]\n                    edge_score = await self._score_path_candidate(current_val, edge, edge_state)\n                    new_path_score = score * edge_score # Multiplicative for rates\n\n                    # Avoid cycles for now, or handle explicitly\n                    if edge.target_asset_id in [e.source_asset_id for e in current_path]:\n                        if edge.target_asset_id == start_asset_id and new_val > input_amount * 1.005: # 0.5% min profit\n                             profitable_paths.append(current_path + [edge])\n                        continue # Avoid general cycles or re-visiting non-start nodes\n\n                    candidates.append((new_path_score, new_val, current_path + [edge]))\n            \n            if not candidates: break\n            candidates.sort(key=lambda x: x[0], reverse=True) # Sort by score\n            beam = candidates[:beam_width]\n\n        return profitable_paths\n```",
+        "testStrategy": "Test with a small, manually constructed graph with known arbitrage opportunities (e.g., A->B->C->A). Verify beam search finds these paths. Check constraints like max path length and beam width are respected. Test behavior with missing edge states from Redis.",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define BeamSearchOptimizer Class Structure",
+            "description": "Establish the core BeamSearchOptimizer class with initialization parameters, configuration attributes, and method signatures for the beam search algorithm.",
+            "dependencies": [],
+            "details": "Create the class with proper initialization, configure beam width, max path length, and scoring parameters. Define method signatures for search, scoring, and state management.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Edge State Retrieval",
+            "description": "Develop the method to retrieve edge state data from Redis cache with proper error handling and fallback mechanisms.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement async method to fetch EdgeState from Redis, handle missing or stale data, and provide appropriate default values or error responses.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Implement Non-ML Path Scoring",
+            "description": "Design and implement a simple scoring function that evaluates path candidates based on conversion rates, gas costs, and liquidity without machine learning.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create scoring logic that considers profitability potential, penalizes high gas costs, favors higher liquidity, and handles missing data gracefully.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Implement Path Validation",
+            "description": "Develop validation logic to ensure paths are valid, avoid cycles, meet constraints, and have sufficient confidence scores.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement checks for cycle detection, path length limits, confidence thresholds, and other constraints defined in the system.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Develop Core Beam Search Algorithm Logic",
+            "description": "Implement the main beam search algorithm that explores paths, maintains beam candidates, and finds profitable opportunities.",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Build the core search loop that expands beam candidates, scores new paths, maintains beam width constraints, and identifies profitable cycles.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Path Simulation & Profitability Check",
+        "description": "Implement `PathSimulator`. This class takes a path (sequence of `YieldGraphEdge` objects) and an input amount. It simulates execution step-by-step using current `EdgeState` from Redis for each edge in the path. It must calculate net profit after accounting for estimated gas costs and slippage for each step. Slippage estimation should be based on `EdgeState.liquidity_usd` and trade size.",
+        "details": "```python\n# execution/simulator.py\nfrom typing import List, Dict, Optional\nfrom graph_engine.models import YieldGraphEdge, EdgeState\n# import redis.asyncio as redis\n\nclass PathSimulator:\n    def __init__(self, redis_client, asset_oracle):\n        self.redis_client = redis_client\n        self.asset_oracle = asset_oracle # For converting gas costs to asset units\n\n    async def _get_edge_state(self, edge_id: str) -> Optional[EdgeState]:\n        state_json = await self.redis_client.get(f\"edge_state:{edge_id}\")\n        if state_json: return EdgeState.parse_raw(state_json)\n        return None\n\n    async def _estimate_slippage_impact(self, trade_amount_usd: float, liquidity_usd: Optional[float]) -> float:\n        if liquidity_usd is None or liquidity_usd == 0: return 0.5 # Default high slippage if no liquidity data\n        # Simplified slippage model: (trade_amount_usd / liquidity_usd) * C\n        # C can be a constant, e.g., 0.5 for 0.05% slippage per 1% of pool depth used\n        slippage_percentage = (trade_amount_usd / liquidity_usd) * 0.1 # Example: 10% factor\n        return min(slippage_percentage, 0.99) # Cap slippage at 99%\n\n    async def simulate_path(self, path: List[YieldGraphEdge], initial_amount: float, start_asset_id: str) -> Dict:\n        current_asset_id = start_asset_id\n        current_amount = initial_amount\n        total_gas_usd_cost = 0.0\n        path_details_log = []\n\n        for i, edge in enumerate(path):\n            edge_state = await self._get_edge_state(edge.edge_id)\n            if not edge_state or edge_state.confidence_score < 0.5:\n                return {\"error\": f\"Stale/missing state for edge {edge.edge_id}\", \"path_taken\": path_details_log}\n\n            # Convert current_amount to USD for slippage estimation\n            current_asset_price_usd = await self.asset_oracle.get_price_usd(current_asset_id)\n            if current_asset_price_usd is None: \n                return {\"error\": f\"Could not get price for {current_asset_id}\", \"path_taken\": path_details_log}\n            trade_amount_usd = current_amount * current_asset_price_usd\n\n            slippage_impact = await self._estimate_slippage_impact(trade_amount_usd, edge_state.liquidity_usd)\n            \n            # Effective conversion rate after slippage\n            effective_conversion_rate = (edge_state.conversion_rate or 0.0) * (1 - slippage_impact)\n\n            output_amount_before_gas = current_amount * effective_conversion_rate\n            gas_cost_usd = edge_state.gas_cost_usd or 0.0\n            total_gas_usd_cost += gas_cost_usd\n\n            # Convert gas cost to output asset units to subtract\n            target_asset_price_usd = await self.asset_oracle.get_price_usd(edge.target_asset_id)\n            if target_asset_price_usd is None or target_asset_price_usd == 0:\n                return {\"error\": f\"Could not get price for target asset {edge.target_asset_id}\", \"path_taken\": path_details_log}\n            gas_cost_in_target_asset = gas_cost_usd / target_asset_price_usd\n            \n            final_output_amount_for_step = output_amount_before_gas - gas_cost_in_target_asset\n\n            path_details_log.append({\n                \"step\": i + 1, \"edge_id\": edge.edge_id,\n                \"input_asset\": current_asset_id, \"input_amount\": current_amount,\n                \"output_asset\": edge.target_asset_id, \"output_amount_gross\": output_amount_before_gas,\n                \"slippage_impact\": slippage_impact, \"gas_cost_usd\": gas_cost_usd,\n                \"final_output_amount\": final_output_amount_for_step\n            })\n\n            if final_output_amount_for_step <= 0:\n                return {\"error\": f\"Path became unprofitable at step {i+1}\", \"path_taken\": path_details_log}\n            \n            current_amount = final_output_amount_for_step\n            current_asset_id = edge.target_asset_id\n\n        # Assuming path is a cycle back to start_asset_id\n        profit_in_start_asset = current_amount - initial_amount if current_asset_id == start_asset_id else 0\n        # Convert profit to USD for standardized reporting\n        start_asset_price_usd = await self.asset_oracle.get_price_usd(start_asset_id)\n        profit_usd = profit_in_start_asset * start_asset_price_usd if start_asset_price_usd else 0\n\n        return {\n            \"is_profitable\": profit_in_start_asset > 0,\n            \"profit_amount_start_asset\": profit_in_start_asset,\n            \"profit_usd\": profit_usd,\n            \"final_amount_start_asset\": current_amount if current_asset_id == start_asset_id else 0,\n            \"total_gas_usd_cost\": total_gas_usd_cost,\n            \"path_details\": path_details_log\n        }\n# AssetOracle would be a new class to get token prices, e.g., from CoinGecko or on-chain oracles.\n```",
+        "testStrategy": "Simulate known profitable and unprofitable paths. Verify calculations for profit, gas costs, and slippage are accurate against manual checks or small, controlled scenarios. Test with paths containing edges with missing/stale data or low liquidity. Ensure `AssetOracle` provides reasonable prices.",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          4,
+          5
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define PathSimulator Class Structure",
+            "description": "Establish the foundational class structure for PathSimulator, including initialization parameters and core method signatures for path simulation.",
+            "dependencies": [],
+            "details": "Create PathSimulator class with Redis client and asset oracle dependencies. Define method signatures for simulation, edge state retrieval, and slippage calculation.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement Core Path Traversal Logic",
+            "description": "Develop the core algorithm that iterates through each edge in a path, applying conversion rates and tracking amounts at each step.",
+            "dependencies": [
+              1
+            ],
+            "details": "Build the main simulation loop that processes each edge sequentially, maintains current asset state, and accumulates results.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Implement Slippage Estimation Model",
+            "description": "Develop a slippage estimation model that calculates price impact based on trade size relative to available liquidity.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create slippage calculation logic using liquidity data, implement configurable slippage models, and provide fallback values for missing data.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Define and Implement AssetOracle for Price Fetching",
+            "description": "Create AssetOracle class to fetch current asset prices from external sources like CoinGecko or on-chain price feeds.",
+            "dependencies": [],
+            "details": "Implement price fetching interface with caching, error handling, and multiple price source support for accurate USD conversions.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Implement Gas Cost Calculation and Unit Conversion",
+            "description": "Develop logic to calculate gas costs in USD and convert them to relevant asset units for accurate profit calculations.",
+            "dependencies": [
+              1,
+              4
+            ],
+            "details": "Build gas cost estimation, convert USD costs to asset units using AssetOracle, and integrate into simulation results.",
+            "status": "pending"
+          },
+          {
+            "id": 6,
+            "title": "Calculate Net Profit/Loss and Generate Simulation Report",
+            "description": "Combine all simulation components to calculate final profit/loss and generate detailed execution reports.",
+            "dependencies": [
+              2,
+              3,
+              5
+            ],
+            "details": "Aggregate simulation results, calculate net profit accounting for all costs, and format comprehensive simulation reports.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Database Schema & ORM Setup (PostgreSQL & SQLAlchemy)",
+        "description": "Define PostgreSQL schemas using SQLAlchemy with async support. Key tables: `executed_paths` (path definition, input/output amounts, profit, status, timestamp), `learned_ml_patterns` (pattern features, success rate), `token_metadata` (address, symbol, decimals, chain, market_cap, daily_volume for filtering). Setup Alembic for migrations.",
+        "details": "```python\n# db/models.py\nfrom sqlalchemy import Column, Integer, String, Numeric, DateTime, Boolean, JSON\nfrom sqlalchemy.ext.asyncio import create_async_engine, AsyncSession\nfrom sqlalchemy.orm import sessionmaker, declarative_base\nfrom datetime import datetime\n\nDATABASE_URL = \"postgresql+asyncpg://user:pass@host/db_name\" # From config\nBase = declarative_base()\n\nclass ExecutedPath(Base):\n    __tablename__ = \"executed_paths\"\n    id = Column(Integer, primary_key=True, index=True)\n    path_description_hash = Column(String, index=True) # Hash of sorted edge_ids in path\n    edges_json = Column(JSON) # List of edge_ids or full edge objects\n    start_asset_id = Column(String)\n    input_amount = Column(Numeric(36, 18))\n    expected_profit_usd = Column(Numeric(36, 18))\n    actual_profit_usd = Column(Numeric(36, 18), nullable=True)\n    status = Column(String) # e.g., SIMULATED, EXECUTING, COMPLETED_SUCCESS, COMPLETED_FAILURE\n    executed_at = Column(DateTime, default=datetime.utcnow)\n    transaction_hashes_json = Column(JSON, nullable=True)\n\nclass TokenMetadata(Base):\n    __tablename__ = \"token_metadata\"\n    id = Column(String, primary_key=True) # e.g., ETH_MAINNET_0xAddress\n    address = Column(String, index=True)\n    chain_name = Column(String, index=True)\n    symbol = Column(String)\n    decimals = Column(Integer)\n    market_cap_usd = Column(Numeric(36, 2), nullable=True)\n    daily_volume_usd = Column(Numeric(36, 2), nullable=True)\n    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)\n\n# ML patterns table can be added later when ML model is more defined.\n\nengine = create_async_engine(DATABASE_URL)\nAsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)\n\nasync def get_db():\n    async with AsyncSessionLocal() as session:\n        yield session\n\n# Setup Alembic: alembic init alembic; configure env.py and alembic.ini\n```",
+        "testStrategy": "Initialize Alembic and generate initial migration. Create tables in the database. Perform basic asynchronous CRUD operations for each model using `AsyncSessionLocal` to verify ORM setup.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define Async SQLAlchemy ORM Models",
+            "description": "Define the ExecutedPath and TokenMetadata SQLAlchemy models with proper async support, including all required columns and relationships.",
+            "dependencies": [],
+            "details": "Create SQLAlchemy models with async engine configuration, define table schemas with appropriate data types, indexes, and constraints.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Setup Async Database Engine and Session Management",
+            "description": "Configure the async SQLAlchemy engine, session factory, and database connection management with proper connection pooling.",
+            "dependencies": [
+              1
+            ],
+            "details": "Set up async engine with connection pooling, create session factory, implement database session lifecycle management.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Initialize and Configure Alembic for Migrations",
+            "description": "Initialize Alembic migration framework and configure it for async SQLAlchemy operations with proper environment setup.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Run alembic init, configure env.py for async operations, set up alembic.ini with database connection settings.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Create and Apply Initial Alembic Migration",
+            "description": "Generate the initial Alembic migration for the defined models and apply it to create the database schema.",
+            "dependencies": [
+              3
+            ],
+            "details": "Generate migration with alembic revision --autogenerate, review the migration script, and apply it with alembic upgrade head.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Telegram Bot Interface - Core Functionality",
+        "description": "Setup `python-telegram-bot` for user interaction. Implement core commands: `/status` (system health, graph stats like total edges/nodes, data collector status), `/opportunities` (lists top N profitable paths from `PathSimulator` with key metrics like Est. APR, Risk Score (placeholder), Time), and `/config` (view/set basic params like min_profit_threshold). Implement user whitelisting.",
+        "details": "```python\n# telegram_interface/bot.py\nfrom telegram import Update\nfrom telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters\n\n# Assume access to graph, pathfinder, simulator, config objects (e.g., via context or global state)\n# TELEGRAM_BOT_TOKEN = \"YOUR_TOKEN\"\n# ALLOWED_TELEGRAM_USER_IDS = [1234567890] # From config\n\nasync def auth_filter(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:\n    return update.effective_user.id in ALLOWED_TELEGRAM_USER_IDS\n\nasync def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):\n    if not await auth_filter(update, context): return\n    await update.message.reply_text(\"Yield Arbitrage Bot Started.\")\n\nasync def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):\n    if not await auth_filter(update, context): return\n    # Fetch stats: len(graph.edges), len(graph.nodes), last data update timestamp, etc.\n    status_text = f\"Edges: {len(context.bot_data['graph'].edges)}, Nodes: {len(context.bot_data['graph'].nodes)}\"\n    await update.message.reply_text(status_text)\n\nasync def opportunities_command(update: Update, context: ContextTypes.DEFAULT_TYPE):\n    if not await auth_filter(update, context): return\n    # start_asset_id = \"ETH_MAINNET_0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\" # Example WETH\n    # input_amount = 1.0 # Example 1 WETH\n    # paths = await context.bot_data['pathfinder'].search(start_asset_id, input_amount, beam_width=10)\n    # results = []\n    # for path in paths[:5]: # Simulate top 5\n    #    sim_result = await context.bot_data['simulator'].simulate_path(path, input_amount, start_asset_id)\n    #    if sim_result.get(\"is_profitable\"):\n    #        results.append(f\"Profit: {sim_result['profit_usd']:.2f} USD, Gas: {sim_result['total_gas_usd_cost']:.2f} USD, Path: {'->'.join([e.edge_id for e in path])}\")\n    # if not results: await update.message.reply_text(\"No profitable opportunities found.\")\n    # else: await update.message.reply_text(\"\\n\".join(results))\n    await update.message.reply_text(\"Opportunities command placeholder.\") # Placeholder for full logic\n\n# main_bot_runner.py\n# def run_telegram_bot(graph, pathfinder, simulator, config):\n#    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()\n#    application.bot_data['graph'] = graph\n#    # ... add other shared objects\n#    application.add_handler(CommandHandler(\"start\", start_command))\n#    application.add_handler(CommandHandler(\"status\", status_command))\n#    application.add_handler(CommandHandler(\"opportunities\", opportunities_command))\n#    application.run_polling()\n```",
+        "testStrategy": "Test all implemented commands with a whitelisted Telegram user ID. Verify `/opportunities` displays data formatted correctly from `PathSimulator`. Test access denial for non-whitelisted users. Check graceful error handling for commands if backend services are unavailable.",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Setup Telegram Bot Environment",
+            "description": "Install the python-telegram-bot library, configure bot token, and set up the basic application structure for telegram interactions.",
+            "dependencies": [],
+            "details": "Install python-telegram-bot package, configure bot token from environment variables, set up basic Application builder and token configuration.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement User Whitelisting and Authentication",
+            "description": "Develop a system for user authentication based on Telegram user IDs, including whitelist management and access control.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create authentication filter function, implement user ID whitelist checking, add access denial responses for unauthorized users.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Develop /status Command Handler",
+            "description": "Create the command handler for /status that displays system health information, graph statistics, and data collector status.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement status command that fetches graph edge/node counts, data collector health, last update timestamps, and formats status response.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Develop /opportunities Command Handler",
+            "description": "Implement the command handler for /opportunities that finds and displays profitable arbitrage paths with key metrics.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create opportunities command that integrates with pathfinder and simulator, formats opportunity results with profit/gas data.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Implement Basic /config Command Handler",
+            "description": "Develop a command handler for viewing and setting basic configuration parameters like minimum profit thresholds.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create config command for viewing current settings, implement parameter modification functionality, add validation for config changes.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "ML Edge/Path Scorer - Initial PyTorch Model & Training Setup",
+        "description": "Implement `EdgeScorer` class using PyTorch. Define a simple feed-forward neural network. Collect features for edges (e.g., normalized conversion rate, liquidity ratio, gas cost, time since last update) and paths (e.g., length, number of protocols). Setup a basic training loop (can be offline initially) using simulated path data (profitable/unprofitable paths as labels) stored in PostgreSQL. Integrate this scorer into `BeamSearchOptimizer` as an alternative to the simple scorer.",
+        "details": "```python\n# ml_models/scorer.py\nimport torch\nimport torch.nn as nn\nimport numpy as np\nfrom sklearn.preprocessing import StandardScaler\nfrom graph_engine.models import EdgeState # For feature extraction\n\nclass EdgeScorerNN(nn.Module):\n    def __init__(self, input_dim, hidden_dim=64):\n        super().__init__()\n        self.layer_1 = nn.Linear(input_dim, hidden_dim)\n        self.relu = nn.ReLU()\n        self.layer_2 = nn.Linear(hidden_dim, 1) # Output a raw score\n\n    def forward(self, x):\n        x = self.relu(self.layer_1(x))\n        return self.layer_2(x)\n\nclass MLEdgeScorer:\n    def __init__(self, model_path=None, feature_scaler_path=None):\n        # Define features based on EdgeState and path context\n        self.feature_names = ['norm_conv_rate', 'norm_liquidity', 'norm_gas_cost', 'time_decay', 'path_length_feature']\n        self.model = EdgeScorerNN(input_dim=len(self.feature_names))\n        if model_path: self.model.load_state_dict(torch.load(model_path))\n        self.model.eval() # Set to evaluation mode\n        self.scaler = StandardScaler()\n        # if feature_scaler_path: self.scaler = load_scaler(feature_scaler_path)\n\n    def _preprocess_features(self, edge_state: EdgeState, path_context: Dict) -> Optional[torch.Tensor]:\n        # Extract features: edge_state.conversion_rate, edge_state.liquidity_usd, etc.\n        # path_context: {'current_path_length': N}\n        # Handle missing values (e.g., impute or return None)\n        # raw_features = np.array([...])\n        # scaled_features = self.scaler.transform(raw_features.reshape(1, -1))\n        # return torch.tensor(scaled_features, dtype=torch.float32)\n        return None # Placeholder\n\n    async def score_edge(self, edge_state: EdgeState, path_context: Dict) -> float:\n        features_tensor = self._preprocess_features(edge_state, path_context)\n        if features_tensor is None: return -float('inf') # Cannot score if features are bad\n        with torch.no_grad():\n            score = self.model(features_tensor).item()\n        return score\n\n    def train_model(self, training_data_df): # DataFrame from ExecutedPath table\n        # X = training_data_df[self.feature_names]\n        # y = training_data_df['profitability_label'] # e.g., 1 for profitable, 0 for not, or actual profit\n        # self.scaler.fit(X)\n        # X_scaled = self.scaler.transform(X)\n        # Convert to PyTorch tensors, setup DataLoader, Optimizer, Loss Function (e.g., BCEWithLogitsLoss or MSELoss)\n        # Training loop...\n        # torch.save(self.model.state_dict(), 'edge_scorer_model.pth')\n        # save_scaler(self.scaler, 'feature_scaler.pkl')\n        pass\n\n# In BeamSearchOptimizer, switch to use MLEdgeScorer.score_edge\n```\nUpdate `BeamSearchOptimizer` to optionally use this ML scorer. Training data can be generated by running the non-ML beam search, simulating paths, and labeling them.",
+        "testStrategy": "Unit test feature extraction and scaling. Train the model on a small, generated dataset of simulated paths (use `PathSimulator` to generate outcomes, then label them). Verify that `BeamSearchOptimizer` can use the ML scorer. Compare path quality (e.g., average simulated profit of found paths) between ML and non-ML scorers on a test set of market conditions.",
+        "priority": "medium",
+        "dependencies": [
+          5,
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define `EdgeScorerNN` PyTorch Model Architecture",
+            "description": "Design and specify the PyTorch `nn.Module` for the `EdgeScorerNN`, focusing on a simple feed-forward network structure suitable for edge scoring. This includes defining input/output dimensions, layers, and activation functions.",
+            "dependencies": [],
+            "details": "Specify input/output dimensions, number of hidden layers, neurons per layer, and activation functions (e.g., ReLU, Sigmoid).",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Implement `MLEdgeScorer` Class with Feature Engineering",
+            "description": "Develop the `MLEdgeScorer` class. This includes methods for extracting relevant features from `EdgeState` and the current path context. Implement feature scaling (e.g., standardization or normalization) for the extracted features.",
+            "dependencies": [
+              1
+            ],
+            "details": "Identify key features from `EdgeState` and path context. Implement extraction logic. Choose and implement a scaling strategy (e.g., `sklearn.preprocessing.StandardScaler`). The class should be able to use the `EdgeScorerNN` model for inference.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Develop Training Data Collection/Generation Strategy",
+            "description": "Design and implement a strategy and necessary scripts for acquiring or generating training data. This could involve querying an `ExecutedPath` table, simulating paths, and defining a labeling scheme for good/bad edges or paths based on execution outcomes.",
+            "dependencies": [
+              2
+            ],
+            "details": "Define data sources (e.g., `ExecutedPath` table, simulated data). Specify labeling criteria (e.g., based on path success, cost, or other metrics). Develop scripts to extract features (as defined in subtask 2) and labels, and format them for training.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Implement Offline Model Training Loop",
+            "description": "Create a script or module for training the `EdgeScorerNN` model offline using the collected/generated data. This includes setting up the optimizer (e.g., Adam), defining an appropriate loss function (e.g., MSE, CrossEntropy), and implementing basic evaluation metrics.",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Choose optimizer (e.g., AdamW), loss function (e.g., Binary Cross-Entropy for classification or MSE for regression), batching strategy, and evaluation metrics (e.g., accuracy, F1-score, ROC AUC). Implement training and validation steps.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Implement Model and Scaler Persistence",
+            "description": "Develop functionality to save the trained PyTorch model state (`state_dict`) and the fitted feature scaler to disk. Implement corresponding functions to load them back for inference or further training.",
+            "dependencies": [
+              2,
+              4
+            ],
+            "details": "Use `torch.save()` for the model's `state_dict` and `torch.load()` for loading. Use `joblib` or `pickle` for saving/loading the scaler object.",
+            "status": "pending"
+          },
+          {
+            "id": 6,
+            "title": "Integrate `MLEdgeScorer` into `BeamSearchOptimizer`",
+            "description": "Modify the `BeamSearchOptimizer` to allow the use of the `MLEdgeScorer` (with its loaded model and scaler) as an alternative or supplementary scoring mechanism for edges or paths during the search process.",
+            "dependencies": [
+              2,
+              5
+            ],
+            "details": "Adapt `BeamSearchOptimizer` to initialize and use an instance of `MLEdgeScorer`. Ensure the scorer is called with appropriate `EdgeState` and path context, and its output score is correctly incorporated into the beam search logic.",
+            "status": "pending"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Risk Management Foundation & Execution Scaffolding",
+        "description": "Implement `DeltaTracker` to calculate market exposure for simple paths (e.g., involving one volatile asset and one stablecoin). Scaffold `ExecutionEngine` class with placeholder transaction submission logic but include pre-flight checks (slippage tolerance, gas costs vs. profit using `PathSimulator`). Scaffold `PositionMonitor` class structure as per PRD, with `active_positions` dict and `monitor_position` method placeholder. Log simulated executions to `ExecutedPath` table.",
+        "details": "```python\n# risk/delta_tracker.py\nfrom typing import List, Dict\nfrom graph_engine.models import YieldGraphEdge\n\nclass DeltaTracker:\n    def __init__(self, asset_oracle): # AssetOracle for asset properties (e.g., is_stable)\n        self.asset_oracle = asset_oracle\n\n    async def calculate_path_delta(self, path: List[YieldGraphEdge], path_amounts: List[float]) -> Dict[str, float]:\n        # path_amounts[i] is the amount of path[i-1].target_asset_id (or start_asset for i=0)\n        # Track net exposure to each volatile asset throughout the path.\n        # Example: USDC -> ETH (amount_eth) -> USDC. Delta ETH = amount_eth while holding ETH.\n        # This is a simplified view; true delta needs to consider options, perps etc.\n        delta_exposure = defaultdict(float)\n        # Logic to iterate through path and accumulate/decrement asset holdings\n        return dict(delta_exposure)\n\n# execution/engine.py\n# from db.models import ExecutedPath, AsyncSessionLocal (or get_db from context)\n# from execution.simulator import PathSimulator\n\nclass ExecutionEngine:\n    def __init__(self, blockchain_provider, simulator: PathSimulator, db_session_factory, asset_oracle):\n        self.provider = blockchain_provider\n        self.simulator = simulator\n        self.db = db_session_factory\n        self.asset_oracle = asset_oracle\n        self.MIN_PROFIT_THRESHOLD_USD = 0.50 # Example: 50 cents\n\n    async def execute_simulated_path(self, path: List[YieldGraphEdge], input_amount: float, start_asset_id: str):\n        sim_result = await self.simulator.simulate_path(path, input_amount, start_asset_id)\n        \n        async with self.db() as session:\n            # path_desc_hash = hashlib.sha256(json.dumps([e.edge_id for e in sorted(path, key=lambda ed: ed.edge_id)]).encode()).hexdigest()\n            db_entry = ExecutedPath(\n                # path_description_hash=path_desc_hash,\n                edges_json=[e.dict() for e in path],\n                start_asset_id=start_asset_id,\n                input_amount=input_amount,\n                expected_profit_usd=sim_result.get(\"profit_usd\", 0),\n                status=\"SIMULATED_FAILURE\" if \"error\" in sim_result else \"SIMULATED_SUCCESS\"\n            )\n            session.add(db_entry)\n            await session.commit()\n\n        if \"error\" in sim_result or not sim_result.get(\"is_profitable\") or sim_result.get(\"profit_usd\",0) < self.MIN_PROFIT_THRESHOLD_USD:\n            print(f\"Execution aborted: {sim_result.get('error', 'Not profitable enough')}\")\n            return False\n        \n        print(f\"Simulated execution successful for path. Profit: {sim_result['profit_usd']:.2f} USD. Actual execution not yet implemented.\")\n        # Placeholder for actual transaction submission logic for each edge type\n        # For now, just log that it would be executed.\n        return True\n\n# execution/monitor.py\nclass PositionMonitor:\n    def __init__(self, db_session_factory, asset_oracle):\n        self.active_positions: Dict[str, Dict] = {} # position_id -> position_data_and_state\n        self.db = db_session_factory\n        self.asset_oracle = asset_oracle\n        self.monitoring_intervals = {\n            'hedged_yield': 60, 'leveraged_lending': 30, 'simple_farming': 300\n        }\n\n    async def add_position(self, position_id: str, position_type: str, data: Dict):\n        self.active_positions[position_id] = {\"type\": position_type, \"data\": data, \"last_checked\": time.time()}\n        print(f\"Added position {position_id} of type {position_type}\")\n\n    async def monitor_position_task(self, position_id: str):\n        # Actual monitoring logic based on position_type as per PRD\n        # e.g., check collateral ratio for lending, funding rates for hedged, etc.\n        # For now, just log\n        print(f\"Monitoring position {position_id} - Type: {self.active_positions[position_id]['type']}\")\n        self.active_positions[position_id]['last_checked'] = time.time()\n\n    async def run_monitoring_loop(self):\n        while True:\n            for pid, pdata in list(self.active_positions.items()):\n                interval = self.monitoring_intervals.get(pdata['type'], 300)\n                if time.time() - pdata['last_checked'] > interval:\n                    await self.monitor_position_task(pid)\n            await asyncio.sleep(10) # Check every 10s which positions need monitoring\n```",
+        "testStrategy": "Unit test `DeltaTracker` for simple single volatile asset paths. Verify `ExecutionEngine` performs simulation checks and correctly logs to `ExecutedPath` table with 'SIMULATED_SUCCESS' or 'SIMULATED_FAILURE'. Test `PositionMonitor` can add positions and the `run_monitoring_loop` calls `monitor_position_task` (initially just logging).",
+        "priority": "medium",
+        "dependencies": [
+          1,
+          6,
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement DeltaTracker Class for Basic Market Exposure",
+            "description": "Develop the `DeltaTracker` class to calculate and track basic market exposure (delta) for simple trading paths. This forms a core part of the risk management foundation.",
+            "dependencies": [],
+            "details": "Implement methods for: initializing the tracker, adding/removing trades/positions, and calculating total delta for specified assets or paths. Focus on simple, direct path calculations initially.",
+            "status": "pending"
+          },
+          {
+            "id": 2,
+            "title": "Scaffold ExecutionEngine with Pre-Flight Checks",
+            "description": "Create the structural outline for the `ExecutionEngine` class. Implement essential pre-flight checks (slippage, gas, profitability using `PathSimulator`) before any actual execution logic, which will initially be a placeholder.",
+            "dependencies": [],
+            "details": "Define the `ExecutionEngine` class structure. Implement a method `perform_pre_flight_checks(path)` which internally calls checks for slippage tolerance, estimated gas costs, and potential profit (leveraging `PathSimulator`). Include a placeholder `execute_path(path)` method.",
+            "status": "pending"
+          },
+          {
+            "id": 3,
+            "title": "Implement Logging of Simulated Execution Attempts to PostgreSQL",
+            "description": "Set up database logging for all simulated execution attempts processed by the `ExecutionEngine`. Record outcomes (success/failure) and relevant details/reasons into the `ExecutedPath` table in PostgreSQL.",
+            "dependencies": [
+              2
+            ],
+            "details": "Ensure `ExecutedPath` table schema in PostgreSQL is defined (or create/update it). Implement functions to write records containing: path details, pre-flight check results, simulated outcome (success/failure), reasons for failure, and timestamp. Integrate this logging into the `ExecutionEngine`'s workflow after pre-flight checks or placeholder execution.",
+            "status": "pending"
+          },
+          {
+            "id": 4,
+            "title": "Scaffold PositionMonitor Class Structure",
+            "description": "Develop the basic class structure for `PositionMonitor`. This includes managing a collection of `active_positions` and defining a placeholder method for monitoring individual positions.",
+            "dependencies": [],
+            "details": "Define the `PositionMonitor` class. Implement mechanisms to add, remove, and retrieve positions from an internal `active_positions` store (e.g., a dictionary keyed by position ID). Create a `monitor_position(position_id)` method with placeholder logic for now.",
+            "status": "pending"
+          },
+          {
+            "id": 5,
+            "title": "Implement Basic Monitoring Loop for PositionMonitor",
+            "description": "Implement the `run_monitoring_loop` method within the `PositionMonitor` class. This loop will periodically trigger the (placeholder) monitoring tasks for all active positions.",
+            "dependencies": [
+              4
+            ],
+            "details": "Create an asynchronous or threaded loop in `run_monitoring_loop` that iterates through `active_positions`. For each position, call the placeholder `monitor_position` method. Ensure the loop runs at a configurable interval and can be gracefully started/stopped.",
+            "status": "pending"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-06-19T15:21:11.954Z",
+      "updated": "2025-06-20T17:36:35.146Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

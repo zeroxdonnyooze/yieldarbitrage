@@ -1,0 +1,456 @@
+# Yield Arbitrage Graph System - Product Requirements Document (Revised)
+
+## Project Overview
+
+This system discovers and executes profitable yield arbitrage opportunities across DeFi protocols using a graph-based approach. Instead of hard-coding specific strategies, we model the entire DeFi ecosystem as a directed graph where nodes represent assets and edges represent transformations (trades, lending, staking, etc.). Profitable opportunities emerge naturally as paths through this graph where the output value exceeds the input value.
+
+### Core Innovation
+
+The system uses machine learning to accelerate pathfinding without constraining discovery. It learns from successful patterns but remains open to finding novel opportunities. All strategies - from simple arbitrage to complex delta-neutral yield farming - are discovered through general graph traversal rather than being explicitly programmed.
+
+## Key Features
+
+### 1. Universal Graph Representation
+- **Nodes**: Any asset (tokens, PT/YT tokens, collateral positions, LP tokens)
+- **Edges**: All possible transformations between assets
+- **Edge Types**: TRADE, SPLIT, COMBINE, BRIDGE, LEND, BORROW, STAKE, WAIT, SHORT
+- **Dynamic Properties**: Each edge tracks conversion rates, liquidity, time requirements, gas costs, and delta exposure
+
+### 2. Intelligent Path Discovery
+- **ML-Guided Beam Search**: Explores most promising paths first
+- **Multi-Objective Optimization**: Balances profit vs risk vs time
+- **Delta Awareness**: Tracks market exposure and finds hedging opportunities
+- **Split Handling**: Supports up to 2 splits per strategy (e.g., for yield tokenization + hedging)
+
+### 3. Smart Filtering & Quality Control
+- **Token Filtering**: Only blue chips, stables, LSDs, and protocol tokens
+- **Minimum Thresholds**: $1M market cap, $50k daily volume, $100k pool TVL
+- **Chain Focus**: Ethereum, Arbitrum, Base, Sonic, Berachain (EVM-only)
+- **No Memecoins**: Quality over quantity
+
+### 4. Continuous Learning
+- **Pattern Recognition**: Learns successful path patterns without hard-coding
+- **Market Adaptation**: Adjusts strategies based on market conditions
+- **Active Learning**: Improves from both successes and failures
+
+### 5. Risk Management
+- **Delta Tracking**: Every path has calculated market exposure
+- **Hedging Discovery**: Automatically finds ways to neutralize delta
+- **Simulation First**: Validates strategies before execution
+- **Active Position Monitoring**: Continuous tracking of open positions
+
+## Edge Type Definitions
+
+- **TRADE**: Simple swap between two assets (e.g., USDC → ETH on Uniswap)
+- **SPLIT**: One asset becomes two (e.g., stETH → PT-stETH + YT-stETH on Pendle)
+- **COMBINE**: Two assets merge into one (e.g., PT + YT → original asset)
+- **BRIDGE**: Cross-chain asset transfer (e.g., ETH on Arbitrum → ETH on Base)
+- **LEND**: Deposit asset as collateral (e.g., USDC → aUSDC on Aave)
+- **BORROW**: Take loan against collateral (e.g., use ETH collateral to borrow USDC)
+- **STAKE**: Lock tokens for yield (e.g., ETH → stETH)
+- **WAIT**: Time passage for maturity/vesting (e.g., PT token reaching maturity date)
+- **SHORT**: Open short position on perpetual exchange (e.g., short ETH on Hyperliquid)
+
+## Initial Protocol Support
+
+### Ethereum
+- **DEXs**: Uniswap V3, Curve, Balancer
+- **Lending**: Aave V3, Compound V3, Morpho
+- **Yield Tokenization**: Pendle, Spectra (formerly APWine)
+- **Liquid Staking**: Lido (stETH), Rocket Pool (rETH), Frax (frxETH)
+
+### Arbitrum
+- **DEXs**: Uniswap V3, Camelot, TraderJoe
+- **Lending**: Aave V3, Radiant, Silo
+- **Yield Tokenization**: Pendle
+- **Perpetuals**: GMX, Hyperliquid
+
+### Base
+- **DEXs**: Uniswap V3, Aerodrome, BaseSwap
+- **Lending**: Aave V3, Moonwell
+- **Yield Tokenization**: Pendle (if available)
+
+### Sonic
+- **DEXs**: Beethoven (Beets), SwapX, Shadow Exchange
+- **Lending**: Silo Finance, Avalon Labs (BTC-focused)
+- **Yield Aggregators**: Beefy, WAGMI, ICHI
+- **Native Features**: High-speed trading, ultra-low fees
+
+### Berachain
+- **DEXs**: BEX (native), Kodiak Finance (CLAMM), BurrBear (stablecoin-focused)
+- **Lending**: Gummi, Beraborrow
+- **Liquid Staking**: Infrared Finance (iBGT, iBERA)
+- **Native Features**: BGT emissions, Proof of Liquidity vaults
+
+## Tech Stack
+
+### Backend Core
+- **Python 3.11+** - Async throughout
+- **FastAPI** - REST API (if needed beyond Telegram)
+- **PostgreSQL** - Historical data, patterns, performance tracking
+- **Redis** - Fast cache for paths and real-time edge states
+- **SQLAlchemy** - ORM with async support
+
+### Blockchain Integration
+- **Web3.py** - EVM blockchain interaction
+- **Multicall.py** - Batch RPC calls for efficiency
+- **Alchemy/Infura** - Primary node providers
+
+### Machine Learning
+- **PyTorch** - Neural networks for edge/path scoring
+- **scikit-learn** - Simpler ML models where appropriate
+- **NumPy/Pandas** - Numerical computations
+
+### Real-time & Messaging
+- **python-telegram-bot** - User interface
+- **Websockets** - Real-time price feeds where available
+- **aiohttp** - Async HTTP requests
+
+### Monitoring
+- **Grafana** - Visualizations (optional)
+- **Simple logging** - Built into each component
+
+## System Components
+
+### 1. Graph Engine
+**Purpose**: Core graph data structure representing the DeFi ecosystem
+
+**Key Classes**:
+- `UniversalYieldGraph` - Main graph with nodes and edges
+- `YieldGraphEdge` - Represents transformations with all properties
+- `EdgeState` - Dynamic state (rates, liquidity, confidence)
+
+**Implementation Guidelines**:
+```python
+class YieldGraphEdge:
+    def __init__(self, source: str, target: str, edge_type: EdgeType):
+        self.source = source
+        self.target = target
+        self.edge_type = edge_type
+        self.constraints = EdgeConstraints()
+        self.state = EdgeState()
+        
+    def calculate_output(self, input_amount: float) -> Dict:
+        """Must handle fees, slippage, time costs"""
+        pass
+```
+
+**Validation Requirements**:
+- Test all edge types produce correct outputs
+- Verify delta calculations are accurate
+- Ensure split edges maintain conservation of value
+- Test edge constraint enforcement
+
+### 2. Protocol Integration Layer with AI Discovery
+**Purpose**: Discover and integrate DeFi protocols into the graph
+
+**Key Classes**:
+- `ProtocolAdapter` - Base class for integrations
+- `AIProtocolAnalyzer` - Generates adapters from documentation
+- `TokenFilter` - Enforces quality standards
+- `NewOpportunityScanner` - Monitors for new markets/pools
+
+**AI Discovery Process**:
+1. **Initial Discovery** (runs daily):
+   - Query DeFiLlama for protocols > $10M TVL
+   - Filter for supported chains
+   - Check against already-integrated protocols
+
+2. **Protocol Analysis** (when new protocol found):
+   - AI fetches protocol documentation
+   - Analyzes smart contracts via Etherscan API
+   - Identifies key functions (swap, deposit, borrow, etc.)
+   - Maps functions to our edge types
+
+3. **Adapter Generation**:
+   - AI generates Python adapter code
+   - Creates test cases based on documented examples
+   - Flags for human review with confidence score
+
+4. **New Market Monitoring** (runs every 5 minutes):
+   - Monitors factory contracts for new pool events
+   - Checks if pool meets our thresholds
+   - Auto-adds if tokens already approved
+   - Queues for review if new tokens
+
+**Integration Process**:
+```python
+class AIProtocolAnalyzer:
+    async def analyze_protocol(self, protocol_name: str, chain: str):
+        """
+        1. Fetch docs from protocol website/GitHub
+        2. Get contract ABIs from Etherscan
+        3. Use LLM to understand protocol mechanics
+        4. Generate adapter mapping to edge types
+        5. Create integration tests
+        """
+        pass
+```
+
+**Validation Requirements**:
+- Test adapter correctly maps protocol functions to edges
+- Verify rate calculations match protocol exactly
+- Ensure all fees are accounted for
+- Test edge cases (max amounts, zero liquidity)
+
+### 3. Smart Data Collection
+**Purpose**: Keep graph data current without overwhelming APIs
+
+**Key Classes**:
+- `HybridDataCollector` - Orchestrates multiple sources
+- `EventMonitor` - On-chain event listening
+- `DirectAPIClient` - Protocol-specific APIs
+
+**Update Strategy**:
+- Critical edges: 30-second updates
+- Important edges: 5-minute updates  
+- Low-activity edges: hourly updates
+- Event-driven updates for new markets
+
+**Validation Requirements**:
+- Test rate limiting works correctly
+- Verify failover between data sources
+- Ensure stale data is marked with low confidence
+- Test event monitoring catches all new markets
+
+### 4. ML-Guided Search with Algorithm Details
+**Purpose**: Find profitable paths efficiently using machine learning
+
+**Key Classes**:
+- `BeamSearchOptimizer` - Main pathfinding algorithm
+- `EdgeScorer` - Neural net predicting edge profitability
+- `PatternLearner` - Learns from successful paths
+
+**Beam Search Algorithm**:
+```python
+class BeamSearchOptimizer:
+    def search(self, start_asset: str, amount: float, beam_width: int = 50):
+        """
+        1. Initialize beam with starting state
+        2. For each search depth:
+           a. Expand all states in current beam
+           b. Score each new state with ML model
+           c. Keep top beam_width states
+           d. Check for profitable cycles back to start
+        3. Return all profitable paths found
+        """
+        
+        # Key optimizations:
+        # - Prune edges with success_probability < 0.1
+        # - Prioritize edges matching learned patterns
+        # - Early terminate if profit target reached
+        # - Track visited nodes to avoid redundant paths
+```
+
+**ML Scoring Details**:
+- **Edge Features**: conversion rate, liquidity ratio, gas cost, historical success rate, time since last update
+- **Path Features**: total edges, time required, number of protocols, delta exposure, similarity to successful patterns
+- **Training**: Online learning from executed paths, batch retraining weekly
+
+**Search Constraints**:
+- Maximum path length: 8-10 edges
+- Maximum time: 30 days
+- Maximum splits: 2 per path
+- Minimum profit: 0.5%
+
+**Validation Requirements**:
+- Test beam search finds known arbitrage opportunities
+- Verify ML scoring improves over random selection
+- Ensure exploration/exploitation balance works
+- Test pattern learning doesn't overfit
+
+### 5. Risk & Execution Engine with Position Monitoring
+**Purpose**: Validate, execute, and monitor profitable strategies
+
+**Key Classes**:
+- `PathSimulator` - Simulates execution with current data
+- `DeltaTracker` - Calculates market exposure
+- `ExecutionEngine` - Submits transactions
+- `PositionMonitor` - Tracks active positions
+
+**Position Monitoring Features**:
+```python
+class PositionMonitor:
+    def __init__(self):
+        self.active_positions = {}
+        self.monitoring_intervals = {
+            'hedged_yield': 60,  # Check every minute
+            'leveraged_lending': 30,  # Check every 30 seconds
+            'simple_farming': 300  # Check every 5 minutes
+        }
+        
+    async def monitor_position(self, position_id: str):
+        """
+        For hedged positions:
+        - Monitor funding rate changes
+        - Track yield accrual vs funding payments
+        - Alert if delta becomes unbalanced
+        
+        For lending positions:
+        - Track collateral ratio
+        - Monitor liquidation threshold
+        - Calculate health factor
+        
+        For all positions:
+        - Track unrealized PnL
+        - Monitor for exit opportunities
+        - Check if rebalancing needed
+        """
+```
+
+**Safety Features**:
+- Simulate before execute
+- Check slippage tolerance
+- Verify gas costs don't exceed profit
+- Track position limits
+
+**Validation Requirements**:
+- Test simulation accurately predicts execution
+- Verify delta calculations for complex paths
+- Test position monitoring alerts work correctly
+- Ensure proper error handling for failed transactions
+
+### 6. Smart Cache with Update Algorithm
+**Purpose**: Cache computed paths with intelligent invalidation
+
+**Key Classes**:
+- `PathCache` - LRU cache with dependency tracking
+- `EdgeStateCache` - Redis-backed real-time data
+
+**Cache Update Algorithm**:
+```python
+class SmartCache:
+    def __init__(self):
+        self.path_dependencies = {}  # path_id -> [edge_ids]
+        self.edge_to_paths = {}  # edge_id -> [path_ids]
+        
+    def should_invalidate_path(self, path_id: str, edge_update: EdgeUpdate):
+        """
+        Invalidate if:
+        1. Any edge in path changed > 1% in rate
+        2. Path includes time-sensitive edges near expiry
+        3. Better alternative path found for same route
+        4. Market regime changed (volatility spike)
+        """
+        
+    def update_edge(self, edge_id: str, new_state: EdgeState):
+        """
+        1. Calculate change magnitude
+        2. Find all affected paths
+        3. Invalidate paths exceeding thresholds
+        4. Update edge state
+        5. Trigger re-search for invalidated paths
+        """
+```
+
+**Invalidation Strategy**:
+- Edge rate changes > 1%
+- Time-based decay by profitability tier
+- Automatic cleanup of expired paths
+- Cascade invalidation for dependent paths
+
+**Validation Requirements**:
+- Test cache invalidation triggers correctly
+- Verify no stale paths are returned
+- Test memory limits are respected
+- Ensure Redis connection failures are handled
+
+### 7. Telegram Interface
+**Purpose**: Simple control and monitoring interface
+
+**Key Classes**:
+- `TelegramBot` - Command handler
+- `AlertManager` - Push notifications
+
+**Core Commands**:
+- `/status` - System health and stats
+- `/opportunities` - Current best opportunities
+- `/positions` - Show active positions with P&L
+- `/execute [id]` - Execute specific opportunity
+- `/close [position_id]` - Close active position
+- `/config` - Adjust parameters
+
+**Validation Requirements**:
+- Test command parsing and validation
+- Verify authentication works correctly
+- Test notification delivery
+- Ensure no sensitive data in messages
+
+## Development Guidelines
+
+### General Principles
+1. **No Over-Engineering**: Each component should be self-contained with built-in health monitoring, configuration, and error handling. No separate orchestration layers.
+
+2. **Async First**: Use async/await throughout for concurrent operations.
+
+3. **Fail Gracefully**: Network calls will fail. APIs will be down. Handle it.
+
+4. **Type Everything**: Use Python type hints extensively for clarity.
+
+### Testing Strategy
+
+#### Unit Tests
+- Each edge type calculation
+- Token filtering logic
+- Path profitability calculations
+- Delta exposure math
+- Cache invalidation logic
+- Position monitoring alerts
+
+#### Integration Tests
+- Protocol adapter accuracy
+- End-to-end path discovery
+- Data collection pipeline
+- ML model integration
+- Position lifecycle (open → monitor → close)
+
+#### Simulation Tests
+- Historical backtesting on known opportunities
+- Stress testing with extreme market conditions
+- Gas spike scenarios
+- Low liquidity handling
+- Liquidation risk under market crashes
+
+### Performance Requirements
+- Path search: < 1 second for top 10 opportunities
+- Data updates: < 100ms per edge
+- Memory usage: < 2GB for 10,000 edges
+- Cache hit rate: > 80% for common queries
+- Position monitoring latency: < 500ms
+
+### Security Considerations
+- Never log private keys or sensitive data
+- Validate all external data
+- Use read-only connections where possible
+- Implement rate limiting on all endpoints
+- Whitelist Telegram users
+
+### Monitoring & Logging
+Each component should log:
+- Performance metrics (built-in, not separate)
+- Error rates and types
+- Successful opportunity execution
+- ML model accuracy over time
+- Position health metrics
+
+## Example Usage Flow
+
+1. **System starts**: Loads graph, starts data collection
+2. **Graph populates**: Protocols are discovered, edges created
+3. **User requests opportunities**: `/opportunities` in Telegram
+4. **Search executes**: ML-guided beam search finds paths
+5. **Results returned**: Top 5 opportunities with APR, risk, time
+6. **User executes**: `/execute 1` to run best opportunity
+7. **System simulates**: Verifies profitability with current data
+8. **Execution**: Submits transactions, monitors result
+9. **Position tracking**: Monitors health, funding rates, yields
+10. **Learning**: Records success/failure for ML improvement
+
+## Success Metrics
+- Find profitable opportunities with > 10% APR
+- Execute with > 80% success rate
+- Discover novel strategies not hard-coded
+- Maintain delta-neutral positions when requested
+- Scale to handle 5+ chains, 50+ protocols
+- Zero liquidations on leveraged positions
+- < 1% slippage on executed trades
