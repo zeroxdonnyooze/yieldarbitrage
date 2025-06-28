@@ -1,0 +1,12 @@
+# Nixpacks configuration for Railway deployment
+[phases.install]
+dependsOn = ["setup"]
+cmds = [
+    "pip install -r requirements-production.txt"
+]
+
+[phases.build]
+dependsOn = ["install"]
+
+[start]
+cmd = "python start_production.py"
