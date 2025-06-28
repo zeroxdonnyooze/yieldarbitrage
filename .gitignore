@@ -92,4 +92,4 @@ dump.rdb
 
 # Alembic
 alembic/versions/*.py
-!alembic/versions/__init__.py
+!alembic/versions/__init__.py.cursor/
