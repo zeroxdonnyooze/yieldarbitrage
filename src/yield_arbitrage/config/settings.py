@@ -20,6 +20,30 @@ class Settings(BaseSettings):
         alias="DATABASE_URL"
     )
     
+    db_pool_size: int = Field(
+        default=15,
+        description="Database connection pool size",
+        alias="DB_POOL_SIZE"
+    )
+    
+    db_max_overflow: int = Field(
+        default=25,
+        description="Maximum overflow connections",
+        alias="DB_MAX_OVERFLOW"
+    )
+    
+    db_pool_timeout: int = Field(
+        default=30,
+        description="Pool timeout in seconds",
+        alias="DB_POOL_TIMEOUT"
+    )
+    
+    db_pool_recycle: int = Field(
+        default=3600,
+        description="Pool connection recycle time in seconds",
+        alias="DB_POOL_RECYCLE"
+    )
+    
     # Redis settings
     redis_url: Optional[str] = Field(
         default="redis://localhost:6379",

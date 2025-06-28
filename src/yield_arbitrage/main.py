@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from yield_arbitrage.api.health import router as health_router
 from yield_arbitrage.config.settings import settings
-from yield_arbitrage.database import close_db, create_tables
+from yield_arbitrage.database import shutdown_database, startup_database
 from yield_arbitrage.cache import close_redis, get_redis
 
 
@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     # Initialize database
     print("📊 Setting up database...")
-    await create_tables()
+    await startup_database()
     print("✅ Database initialized!")
     
     # Initialize Redis
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     # Close database connections
     print("📊 Closing database connections...")
-    await close_db()
+    await shutdown_database()
     print("✅ Database closed!")
     
     # Close Redis connections

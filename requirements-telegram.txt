@@ -1,0 +1,19 @@
+# Telegram Bot Dependencies
+python-telegram-bot==20.7
+telegram==0.0.1
+
+# Optional: If using webhook mode instead of polling
+aiohttp>=3.8.0
+
+# For configuration management
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# For rate limiting and session management
+cachetools>=5.0.0
+
+# For logging and monitoring
+structlog>=23.0.0
+
+# For async operations
+asyncio-throttle>=1.0.0

@@ -9,7 +9,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from yield_arbitrage.database import get_db, create_tables, close_db, Base, engine
+from yield_arbitrage.database import get_db, create_tables, close_db, Base
+from yield_arbitrage.database.connection import engine
 
 
 class TestDatabaseIntegration:

@@ -1,1 +1,1 @@
-"""API routes module."""
+"""API module for yield arbitrage system."""

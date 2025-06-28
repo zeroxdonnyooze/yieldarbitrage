@@ -1,0 +1,196 @@
+# Production Docker Compose configuration
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: yieldarbitrage-postgres-prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-yieldarbitrage_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-arbitrage_prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arbitrage_prod} -d ${POSTGRES_DB:-yieldarbitrage_prod}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - arbitrage-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  redis:
+    image: redis:7-alpine
+    container_name: yieldarbitrage-redis-prod
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - arbitrage-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  app:
+    build:
+      context: .
+      target: production
+    container_name: yieldarbitrage-app-prod
+    ports:
+      - "8000:8000"
+      - "9090:9090"  # Metrics port
+    env_file:
+      - ./config/production.env
+    environment:
+      ENVIRONMENT: production
+      # For cloud deployment, these will be overridden by actual cloud service URLs
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - arbitrage-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: yieldarbitrage-prometheus-prod
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - arbitrage-network
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: yieldarbitrage-grafana-prod
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./monitoring/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - arbitrage-network
+    restart: always
+
+  # Log aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: yieldarbitrage-loki-prod
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - arbitrage-network
+    restart: always
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: yieldarbitrage-promtail-prod
+    volumes:
+      - ./logs:/var/log/app
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - arbitrage-network
+    restart: always
+
+  # Reverse proxy and SSL termination
+  nginx:
+    image: nginx:alpine
+    container_name: yieldarbitrage-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./ssl:/etc/nginx/ssl
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - app
+      - grafana
+    networks:
+      - arbitrage-network
+    restart: always
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  arbitrage-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

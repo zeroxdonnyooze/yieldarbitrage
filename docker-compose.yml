@@ -1,47 +1,58 @@
+# Development Docker Compose configuration
 version: '3.8'
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: yieldarbitrage-postgres
+    container_name: yieldarbitrage-postgres-dev
     environment:
-      POSTGRES_DB: yieldarbitrage
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: yieldarbitrage_dev
+      POSTGRES_USER: arbitrage_user
+      POSTGRES_PASSWORD: dev_password
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_dev_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U arbitrage_user -d yieldarbitrage_dev"]
+      interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - arbitrage-network
 
   redis:
     image: redis:7-alpine
-    container_name: yieldarbitrage-redis
+    container_name: yieldarbitrage-redis-dev
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - redis_dev_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 5
+    networks:
+      - arbitrage-network
 
   app:
-    build: .
-    container_name: yieldarbitrage-app
+    build:
+      context: .
+      target: development
+    container_name: yieldarbitrage-app-dev
     ports:
       - "8000:8000"
+      - "9090:9090"  # Metrics port
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:password@postgres:5432/yieldarbitrage
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://arbitrage_user:dev_password@postgres:5432/yieldarbitrage_dev
       REDIS_URL: redis://redis:6379/0
       DEBUG: "true"
+      MOCK_MODE: "true"
+      LOG_LEVEL: DEBUG
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,9 +61,47 @@ services:
     volumes:
       - .:/app
       - ./src:/app/src
+      - ./config:/app/config
+      - ./logs:/app/logs
     working_dir: /app
-    command: python -m yield_arbitrage.main
+    command: python -m yield_arbitrage.main --reload
+    networks:
+      - arbitrage-network
+    restart: unless-stopped
+
+  # Development tools
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: yieldarbitrage-pgadmin-dev
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@yieldarbitrage.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - arbitrage-network
+    volumes:
+      - pgadmin_dev_data:/var/lib/pgadmin
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: yieldarbitrage-redis-ui-dev
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - arbitrage-network
 
 volumes:
-  postgres_data:
-  redis_data:
+  postgres_dev_data:
+  redis_dev_data:
+  pgadmin_dev_data:
+
+networks:
+  arbitrage-network:
+    driver: bridge

@@ -1,0 +1,136 @@
+# Staging Docker Compose configuration
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: yieldarbitrage-postgres-staging
+    environment:
+      POSTGRES_DB: yieldarbitrage_staging
+      POSTGRES_USER: arbitrage_staging
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arbitrage_staging -d yieldarbitrage_staging"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - arbitrage-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: yieldarbitrage-redis-staging
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_staging_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - arbitrage-network
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      target: production
+    container_name: yieldarbitrage-app-staging
+    ports:
+      - "8000:8000"
+      - "9090:9090"  # Metrics port
+    env_file:
+      - ./config/staging.env
+    environment:
+      ENVIRONMENT: staging
+      DATABASE_URL: postgresql+asyncpg://arbitrage_staging:${POSTGRES_PASSWORD}@postgres:5432/yieldarbitrage_staging
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - arbitrage-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Basic monitoring for staging
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: yieldarbitrage-prometheus-staging
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_staging_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=72h'
+      - '--web.enable-lifecycle'
+    networks:
+      - arbitrage-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: yieldarbitrage-grafana-staging
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-staging123}
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_INSTALL_PLUGINS: grafana-piechart-panel,grafana-worldmap-panel
+    volumes:
+      - grafana_staging_data:/var/lib/grafana
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    depends_on:
+      - prometheus
+    networks:
+      - arbitrage-network
+    restart: unless-stopped
+
+  # Database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: yieldarbitrage-pgadmin-staging
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@staging.yieldarbitrage.local
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-staging123}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - arbitrage-network
+    volumes:
+      - pgadmin_staging_data:/var/lib/pgadmin
+
+volumes:
+  postgres_staging_data:
+  redis_staging_data:
+  prometheus_staging_data:
+  grafana_staging_data:
+  pgadmin_staging_data:
+
+networks:
+  arbitrage-network:
+    driver: bridge
