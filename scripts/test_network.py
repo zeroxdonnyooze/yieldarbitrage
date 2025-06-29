@@ -72,11 +72,17 @@ async def test_postgres_connection(host):
     """Test PostgreSQL connection."""
     try:
         print(f"🔍 Testing PostgreSQL connection to {host}")
+        # Get credentials from environment variables
+        db_password = os.getenv('DB_PASSWORD', 'YOUR_PASSWORD_HERE')
+        if db_password == 'YOUR_PASSWORD_HERE':
+            print("❌ DB_PASSWORD environment variable not set")
+            return False
+            
         conn = await asyncpg.connect(
             host=host.strip('[]'),  # Remove brackets for IPv6
             port=5432,
             user='postgres',
-            password='cpDSoucIWcP4RffV',
+            password=db_password,
             database='postgres',
             command_timeout=10
         )
