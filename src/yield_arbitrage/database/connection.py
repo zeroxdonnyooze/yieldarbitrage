@@ -138,16 +138,21 @@ async def get_pool_status() -> dict:
         return {"error": "Engine not initialized"}
     
     pool = engine.pool
-    return {
+    status = {
         "pool_size": pool.size(),
         "checked_in": pool.checkedin(),
         "checked_out": pool.checkedout(),
         "overflow": pool.overflow(),
-        "invalid": pool.invalid(),
         "total_connections": pool.size() + pool.overflow(),
         "utilization": (pool.checkedout() / (pool.size() + pool.overflow())) * 100
         if (pool.size() + pool.overflow()) > 0 else 0
     }
+    
+    # Add invalid count if available (not all pool types support this)
+    if hasattr(pool, 'invalid'):
+        status["invalid"] = pool.invalid()
+    
+    return status
 
 
 @asynccontextmanager
