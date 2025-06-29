@@ -1,7 +1,7 @@
 """Shared data models for pathfinding components."""
 import time
-from dataclasses import dataclass
-from typing import List, Optional
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any
 from enum import Enum
 
 
@@ -72,3 +72,50 @@ class SearchPath:
             return 0.0
         initial_amount = self.nodes[0].amount
         return self.final_amount - initial_amount - self.total_gas_cost
+
+
+@dataclass 
+class YieldPath:
+    """Complete yield arbitrage path representation for execution."""
+    edges: List[str] = field(default_factory=list)
+    nodes: List[PathNode] = field(default_factory=list)
+    expected_profit: float = 0.0
+    confidence_score: float = 1.0
+    gas_estimate: float = 0.0
+    execution_time_estimate: float = 0.0
+    risk_metrics: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    @property
+    def start_asset(self) -> str:
+        """Get the starting asset ID."""
+        return self.nodes[0].asset_id if self.nodes else ""
+    
+    @property
+    def end_asset(self) -> str:
+        """Get the ending asset ID."""
+        return self.nodes[-1].asset_id if self.nodes else ""
+    
+    @property
+    def path_length(self) -> int:
+        """Get the number of edges in the path."""
+        return len(self.edges)
+    
+    @property 
+    def initial_amount(self) -> float:
+        """Get the initial amount."""
+        return self.nodes[0].amount if self.nodes else 0.0
+    
+    @property
+    def final_amount(self) -> float:
+        """Get the final amount."""
+        return self.nodes[-1].amount if self.nodes else 0.0
+    
+    @property
+    def net_profit(self) -> float:
+        """Calculate net profit after gas costs."""
+        return self.expected_profit - self.gas_estimate
+    
+    def is_profitable(self, min_profit_threshold: float = 0.0) -> bool:
+        """Check if the path is profitable after costs."""
+        return self.net_profit > min_profit_threshold
