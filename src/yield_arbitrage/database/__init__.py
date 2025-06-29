@@ -15,13 +15,8 @@ from .connection import (
     transaction,
 )
 from .models import ExecutedPath, TokenMetadata, SimulatedExecution
-from .execution_logger import (
-    ExecutionLogger,
-    get_execution_logger,
-    log_execution_start,
-    log_simulation_results,
-    log_execution_completion,
-)
+# Execution logger imports moved to avoid circular dependencies
+# Import directly: from yield_arbitrage.database.execution_logger import ExecutionLogger
 
 __all__ = [
     # Connection management
@@ -42,10 +37,10 @@ __all__ = [
     "ExecutedPath",
     "TokenMetadata",
     "SimulatedExecution",
-    # Execution logging
-    "ExecutionLogger",
-    "get_execution_logger",
-    "log_execution_start",
-    "log_simulation_results", 
-    "log_execution_completion",
+    # Execution logging - import directly to avoid circular deps
+    # "ExecutionLogger",
+    # "get_execution_logger", 
+    # "log_execution_start",
+    # "log_simulation_results",
+    # "log_execution_completion",
 ]
