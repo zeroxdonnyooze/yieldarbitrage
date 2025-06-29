@@ -2,25 +2,33 @@
 import asyncio
 import logging
 from typing import Dict, Any, Optional
+from datetime import datetime, timezone
+
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 
+# Create the FastAPI router
+router = APIRouter()
 
+
+@router.get("/health")
 def basic_health_check() -> Dict[str, Any]:
     """Basic health check that returns system status."""
     return {
         "status": "healthy",
         "message": "Service is operational",
-        "timestamp": "2024-01-01T00:00:00Z"
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
+@router.get("/health/detailed")
 def detailed_health_check() -> Dict[str, Any]:
     """Detailed health check with comprehensive status."""
     return {
         "status": "healthy",
         "message": "All systems operational",
-        "timestamp": "2024-01-01T00:00:00Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "checks": {
             "database": {"status": "healthy", "message": "Connected"},
             "redis": {"status": "healthy", "message": "Connected"},
@@ -35,6 +43,7 @@ def detailed_health_check() -> Dict[str, Any]:
     }
 
 
+@router.get("/health/live")
 def liveness_probe() -> Dict[str, Any]:
     """Kubernetes liveness probe."""
     return {
