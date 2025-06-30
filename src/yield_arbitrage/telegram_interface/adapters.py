@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
 from sqlalchemy import text
 
-from yield_arbitrage.database.connection import get_db_session
+from yield_arbitrage.database.connection import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class DatabaseGraphAdapter:
     async def refresh_data(self):
         """Refresh graph data from database."""
         try:
-            async with get_db_session() as session:
+            async with get_session() as session:
                 # Query edges from database
                 edge_result = await session.execute(
                     text("SELECT id, protocol_name, token_in, token_out FROM edges LIMIT 1000")
@@ -70,7 +70,7 @@ class DatabasePositionMonitor:
     async def get_active_positions(self) -> List[str]:
         """Get active positions from database."""
         try:
-            async with get_db_session() as session:
+            async with get_session() as session:
                 result = await session.execute(
                     text("SELECT position_id FROM positions WHERE status = 'active' LIMIT 50")
                 )
@@ -83,7 +83,7 @@ class DatabasePositionMonitor:
     async def get_recent_alerts(self, hours: int = 24) -> List[Any]:
         """Get recent alerts from database."""
         try:
-            async with get_db_session() as session:
+            async with get_session() as session:
                 cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
                 result = await session.execute(
                     text("""
@@ -120,7 +120,7 @@ class DatabaseDeltaTracker:
     async def get_all_positions(self) -> Dict[str, Any]:
         """Get all positions with their current state."""
         try:
-            async with get_db_session() as session:
+            async with get_session() as session:
                 result = await session.execute(
                     text("""
                         SELECT position_id, position_type, current_value_usd, 
@@ -152,7 +152,7 @@ class DatabaseDeltaTracker:
     async def calculate_portfolio_health(self) -> Dict[str, Any]:
         """Calculate overall portfolio health from database."""
         try:
-            async with get_db_session() as session:
+            async with get_session() as session:
                 result = await session.execute(
                     text("""
                         SELECT 
@@ -207,7 +207,7 @@ class DatabaseExecutionLogger:
     async def get_execution_analytics(self, hours: int = 24) -> Dict[str, Any]:
         """Get execution analytics from database."""
         try:
-            async with get_db_session() as session:
+            async with get_session() as session:
                 cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
                 result = await session.execute(
                     text("""

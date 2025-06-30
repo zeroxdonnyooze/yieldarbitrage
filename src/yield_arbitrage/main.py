@@ -8,6 +8,7 @@ from yield_arbitrage.api.health import router as health_router
 from yield_arbitrage.config.settings import settings
 from yield_arbitrage.database import shutdown_database, startup_database
 from yield_arbitrage.cache import close_redis, get_redis
+from yield_arbitrage.telegram_interface.service_bot import TelegramBotService
 
 
 @asynccontextmanager
@@ -25,6 +26,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("📦 Setting up Redis...")
     await get_redis()  # This will initialize the Redis connection
     print("✅ Redis initialized!")
+    
+    # Initialize Telegram bot
+    print("🤖 Setting up Telegram bot...")
+    try:
+        telegram_service = TelegramBotService()
+        await telegram_service.start()
+        print("✅ Telegram bot initialized and running!")
+        # Store the service in app state for shutdown
+        app.state.telegram_service = telegram_service
+    except Exception as e:
+        print(f"⚠️  Telegram bot initialization failed: {e}")
+        print("⚠️  App will continue without Telegram bot")
     
     # TODO: Initialize graph engine
     # await initialize_graph_engine()
@@ -45,6 +58,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("📦 Closing Redis connections...")
     await close_redis()
     print("✅ Redis closed!")
+    
+    # Stop Telegram bot
+    if hasattr(app.state, 'telegram_service'):
+        print("🤖 Stopping Telegram bot...")
+        try:
+            await app.state.telegram_service.stop()
+            print("✅ Telegram bot stopped!")
+        except Exception as e:
+            print(f"⚠️  Error stopping Telegram bot: {e}")
     
     print("✅ System shutdown complete!")
 
