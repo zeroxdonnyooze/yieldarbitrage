@@ -42,7 +42,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize Telegram bot (after Graph Engine)
     print("🤖 Setting up Telegram bot...")
     try:
-        telegram_service = TelegramBotService()
+        # Pass the initialized graph engine to the telegram service
+        graph_engine = getattr(app.state, 'graph_engine', None)
+        
+        telegram_service = TelegramBotService(graph_engine=graph_engine)
         await telegram_service.start()
         print("✅ Telegram bot initialized and running!")
         # Store the service in app state for shutdown

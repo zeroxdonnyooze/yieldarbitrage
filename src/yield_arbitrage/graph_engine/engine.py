@@ -90,15 +90,19 @@ class GraphEngine:
         
         try:
             from ..protocols.uniswap_v3_adapter import UniswapV3Adapter
-            from ..blockchain_connector.provider import get_provider
+            from ..blockchain_connector.provider import blockchain_provider
             
-            # Get blockchain provider
-            provider = await get_provider("ethereum")
+            # Initialize blockchain provider and get Web3 instance
+            await blockchain_provider.initialize()
+            web3_instance = await blockchain_provider.get_web3("ethereum")
+            
+            if not web3_instance:
+                raise Exception("Failed to get Ethereum Web3 instance")
             
             # Initialize Uniswap V3 adapter with required arguments
             uniswap_adapter = UniswapV3Adapter(
                 chain_name="ethereum",
-                provider=provider
+                provider=web3_instance
             )
             await uniswap_adapter.initialize()
             

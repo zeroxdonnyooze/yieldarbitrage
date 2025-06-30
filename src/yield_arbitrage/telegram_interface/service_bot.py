@@ -26,10 +26,11 @@ logger = logging.getLogger(__name__)
 class TelegramBotService:
     """Production Telegram bot service that integrates with real system components."""
     
-    def __init__(self):
+    def __init__(self, graph_engine=None):
         self.bot: Optional[YieldArbitrageBot] = None
         self.config: Optional[BotConfig] = None
         self.components = {}
+        self.graph_engine = graph_engine  # Use provided graph engine
     
     async def initialize(self):
         """Initialize all service components and the bot."""
@@ -63,35 +64,25 @@ class TelegramBotService:
         """Initialize real system components."""
         logger.info("🔧 Initializing system components...")
         
-        # Graph Engine
-        try:
-            from yield_arbitrage.graph_engine.models import GraphEngine
-            self.components['graph'] = GraphEngine()
-            if hasattr(self.components['graph'], 'initialize'):
-                await self.components['graph'].initialize()
-            logger.info("✅ Graph engine initialized")
-        except ImportError:
+        # Graph Engine - use provided instance
+        if self.graph_engine and self.graph_engine.is_initialized:
+            logger.info("✅ Using provided Graph Engine")
+            self.components['graph'] = self.graph_engine.graph
+            self.components['data_collector'] = self.graph_engine.data_collector
+            self.components['pathfinder'] = self.graph_engine.pathfinder
+        else:
             logger.warning("Graph engine not available - using database queries")
             from .adapters import DatabaseGraphAdapter
             self.components['graph'] = DatabaseGraphAdapter()
         
-        # Data Collector
-        try:
-            from yield_arbitrage.data_collector.hybrid_collector import HybridDataCollector
-            self.components['data_collector'] = HybridDataCollector()
-            logger.info("✅ Data collector initialized")
-        except ImportError:
-            logger.warning("Data collector not available")
+        # Initialize remaining components if not provided by Graph Engine
+        if 'data_collector' not in self.components:
+            logger.warning("Data collector not available - using fallback")
             from .adapters import MockDataCollector
             self.components['data_collector'] = MockDataCollector()
         
-        # Pathfinder
-        try:
-            from yield_arbitrage.pathfinding.beam_search import BeamSearchPathfinder
-            self.components['pathfinder'] = BeamSearchPathfinder()
-            logger.info("✅ Pathfinder initialized")
-        except ImportError:
-            logger.warning("Pathfinder not available")
+        if 'pathfinder' not in self.components:
+            logger.warning("Pathfinder not available - using fallback")
             from .adapters import MockPathfinder
             self.components['pathfinder'] = MockPathfinder()
         
