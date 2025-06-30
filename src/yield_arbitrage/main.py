@@ -9,6 +9,7 @@ from yield_arbitrage.config.settings import settings
 from yield_arbitrage.database import shutdown_database, startup_database
 from yield_arbitrage.cache import close_redis, get_redis
 from yield_arbitrage.telegram_interface.service_bot import TelegramBotService
+from yield_arbitrage.graph_engine.engine import initialize_graph_engine, shutdown_graph_engine
 
 
 @asynccontextmanager
@@ -39,8 +40,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         print(f"⚠️  Telegram bot initialization failed: {e}")
         print("⚠️  App will continue without Telegram bot")
     
-    # TODO: Initialize graph engine
-    # await initialize_graph_engine()
+    # Initialize graph engine
+    print("📊 Setting up Graph Engine...")
+    try:
+        graph_engine = await initialize_graph_engine()
+        print("✅ Graph Engine initialized!")
+        # Store in app state for shutdown
+        app.state.graph_engine = graph_engine
+    except Exception as e:
+        print(f"⚠️  Graph Engine initialization failed: {e}")
+        print("⚠️  App will continue without Graph Engine")
     
     print("✅ System startup complete!")
     
@@ -67,6 +76,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             print("✅ Telegram bot stopped!")
         except Exception as e:
             print(f"⚠️  Error stopping Telegram bot: {e}")
+    
+    # Shutdown Graph Engine
+    if hasattr(app.state, 'graph_engine'):
+        print("📊 Shutting down Graph Engine...")
+        try:
+            await shutdown_graph_engine()
+            print("✅ Graph Engine stopped!")
+        except Exception as e:
+            print(f"⚠️  Error stopping Graph Engine: {e}")
     
     print("✅ System shutdown complete!")
 
