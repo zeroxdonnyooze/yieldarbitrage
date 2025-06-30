@@ -90,9 +90,16 @@ class GraphEngine:
         
         try:
             from ..protocols.uniswap_v3_adapter import UniswapV3Adapter
+            from ..blockchain_connector.provider import get_provider
             
-            # Initialize Uniswap V3 adapter
-            uniswap_adapter = UniswapV3Adapter()
+            # Get blockchain provider
+            provider = await get_provider("ethereum")
+            
+            # Initialize Uniswap V3 adapter with required arguments
+            uniswap_adapter = UniswapV3Adapter(
+                chain_name="ethereum",
+                provider=provider
+            )
             await uniswap_adapter.initialize()
             
             # Load edges from Uniswap V3

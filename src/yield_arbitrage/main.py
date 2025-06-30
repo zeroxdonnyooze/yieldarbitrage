@@ -28,7 +28,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await get_redis()  # This will initialize the Redis connection
     print("✅ Redis initialized!")
     
-    # Initialize Telegram bot
+    # Initialize graph engine first (Telegram bot depends on it)
+    print("📊 Setting up Graph Engine...")
+    try:
+        graph_engine = await initialize_graph_engine()
+        print("✅ Graph Engine initialized!")
+        # Store in app state for shutdown
+        app.state.graph_engine = graph_engine
+    except Exception as e:
+        print(f"⚠️  Graph Engine initialization failed: {e}")
+        print("⚠️  App will continue without Graph Engine")
+    
+    # Initialize Telegram bot (after Graph Engine)
     print("🤖 Setting up Telegram bot...")
     try:
         telegram_service = TelegramBotService()
@@ -39,17 +50,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         print(f"⚠️  Telegram bot initialization failed: {e}")
         print("⚠️  App will continue without Telegram bot")
-    
-    # Initialize graph engine
-    print("📊 Setting up Graph Engine...")
-    try:
-        graph_engine = await initialize_graph_engine()
-        print("✅ Graph Engine initialized!")
-        # Store in app state for shutdown
-        app.state.graph_engine = graph_engine
-    except Exception as e:
-        print(f"⚠️  Graph Engine initialization failed: {e}")
-        print("⚠️  App will continue without Graph Engine")
     
     print("✅ System startup complete!")
     
