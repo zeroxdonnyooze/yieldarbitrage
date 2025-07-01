@@ -266,8 +266,18 @@ class CalldataGenerator:
     
     def _generate_stake_calldata(self, edge: YieldGraphEdge) -> EdgeOperationCalldata:
         """Generate staking operation calldata."""
-        # Simplified - real implementation would handle various staking protocols
-        raise NotImplementedError("Staking calldata generation not yet implemented")
+        # Staking is not yet supported in production - return error calldata
+        logger.warning(f"Staking edge {edge.edge_id} not supported in current version")
+        return EdgeOperationCalldata(
+            edge_id=edge.edge_id,
+            target_contract="0x0000000000000000000000000000000000000000",
+            function_name="stake",
+            encoded_data="0x",
+            value=0,
+            gas_estimate=0,
+            operation_type=edge.edge_type,
+            error="Staking operations not yet implemented"
+        )
     
     def _generate_flash_loan_calldata(self, edge: YieldGraphEdge) -> EdgeOperationCalldata:
         """Generate flash loan operation calldata."""

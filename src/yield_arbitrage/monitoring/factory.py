@@ -83,9 +83,9 @@ class MonitoringComponentFactory:
             
         except Exception as e:
             logger.error(f"Failed to initialize Asset Oracle: {e}")
-            # Create a fallback mock oracle
-            logger.warning("Creating fallback mock oracle")
-            self._asset_oracle = MockAssetOracle()
+            # NEVER use mock oracle in production - raise error instead
+            logger.critical("Asset Oracle initialization failed - this is critical for production!")
+            raise RuntimeError(f"Production requires real Asset Oracle, got error: {e}")
     
     async def _initialize_delta_tracker(self) -> None:
         """Initialize the delta tracker."""
@@ -161,42 +161,7 @@ class MonitoringComponentFactory:
         logger.info("✅ Monitoring components closed")
 
 
-# Mock oracle for fallback
-class MockAssetOracle:
-    """Mock asset oracle that returns fixed prices for testing."""
-    
-    async def get_price_usd(self, asset_id: str) -> Optional[float]:
-        """Return mock prices for common assets."""
-        mock_prices = {
-            "ETH_MAINNET_WETH": 3000.0,
-            "ETH_MAINNET_USDC": 1.0,
-            "ETH_MAINNET_USDT": 1.0,
-            "ETH_MAINNET_DAI": 1.0,
-            "ETH_MAINNET_WBTC": 65000.0,
-        }
-        return mock_prices.get(asset_id, 100.0)  # Default to $100
-    
-    async def get_price_details(self, asset_id: str):
-        """Return mock price details."""
-        from ..execution.asset_oracle import AssetPrice
-        from datetime import datetime
-        
-        price = await self.get_price_usd(asset_id)
-        if price is None:
-            return None
-        
-        return AssetPrice(
-            asset_id=asset_id,
-            symbol=asset_id.split('_')[-1] if '_' in asset_id else asset_id,
-            price_usd=price,
-            timestamp=datetime.utcnow(),
-            source="mock",
-            confidence=0.5
-        )
-    
-    async def get_prices_batch(self, asset_ids: list) -> dict:
-        """Return mock batch prices."""
-        return {asset_id: await self.get_price_usd(asset_id) for asset_id in asset_ids}
+# No mock implementations allowed in production code
 
 
 # Global factory instance

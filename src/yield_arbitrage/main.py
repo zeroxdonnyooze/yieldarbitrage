@@ -104,10 +104,24 @@ def create_app() -> FastAPI:
     # Include API routers
     app.include_router(health_router, tags=["health"])
     
-    # TODO: Add additional API routers
-    # app.include_router(graph_router, prefix="/api/v1/graph", tags=["graph"])
-    # app.include_router(opportunities_router, prefix="/api/v1/opportunities", tags=["opportunities"])
-    # app.include_router(execution_router, prefix="/api/v1/execution", tags=["execution"])
+    # Core API routes - enable when implementations are ready
+    try:
+        from yield_arbitrage.api.graph import router as graph_router
+        app.include_router(graph_router, prefix="/api/v1/graph", tags=["graph"])
+    except ImportError:
+        logger.warning("Graph API router not available")
+    
+    try:
+        from yield_arbitrage.api.opportunities import router as opportunities_router
+        app.include_router(opportunities_router, prefix="/api/v1/opportunities", tags=["opportunities"])
+    except ImportError:
+        logger.warning("Opportunities API router not available")
+    
+    try:
+        from yield_arbitrage.api.execution import router as execution_router
+        app.include_router(execution_router, prefix="/api/v1/execution", tags=["execution"])
+    except ImportError:
+        logger.warning("Execution API router not available")
     
     return app
 
