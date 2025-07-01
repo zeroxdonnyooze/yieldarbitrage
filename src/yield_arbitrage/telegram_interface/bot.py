@@ -79,6 +79,7 @@ class YieldArbitrageBot:
         self.authenticator = UserAuthenticator(config)
         self.is_running = False
         self.start_time = datetime.now(timezone.utc)
+        self._polling_task: Optional[asyncio.Task] = None
         
         # Statistics
         self.stats = {
@@ -184,8 +185,9 @@ class YieldArbitrageBot:
             # Send startup notification to admin users
             await self._send_startup_notification()
             
-            # Keep the bot running
-            await self._run_until_stopped()
+            # Run in background instead of blocking
+            self._polling_task = asyncio.create_task(self._run_until_stopped())
+            logger.info("✅ Telegram bot polling started in background")
             
         except Exception as e:
             logger.error(f"Error starting bot: {e}", exc_info=True)
@@ -201,6 +203,14 @@ class YieldArbitrageBot:
         self.is_running = False
         
         try:
+            # Cancel the polling task
+            if self._polling_task and not self._polling_task.done():
+                self._polling_task.cancel()
+                try:
+                    await self._polling_task
+                except asyncio.CancelledError:
+                    pass
+            
             if self.application:
                 # Send shutdown notification to admin users
                 await self._send_shutdown_notification()

@@ -91,8 +91,12 @@ class TelegramBotService:
             from yield_arbitrage.execution.hybrid_simulator import HybridSimulator
             self.components['simulator'] = HybridSimulator()
             logger.info("✅ Simulator initialized")
-        except ImportError:
-            logger.warning("Simulator not available")
+        except ImportError as e:
+            logger.warning(f"Simulator not available (ImportError): {e}")
+            from .adapters import MockSimulator
+            self.components['simulator'] = MockSimulator()
+        except Exception as e:
+            logger.warning(f"Simulator not available (Error): {e}")
             from .adapters import MockSimulator
             self.components['simulator'] = MockSimulator()
         
@@ -186,7 +190,13 @@ class TelegramBotService:
             await self.initialize()
         
         logger.info("🚀 Starting Telegram bot service...")
-        await self.bot.start()
+        try:
+            await self.bot.start()
+            logger.info("✅ Telegram bot is now running and listening for messages")
+        except Exception as e:
+            logger.error(f"❌ Failed to start Telegram bot: {e}")
+            logger.warning("⚠️  Continuing without Telegram bot functionality")
+            # Don't re-raise - let the app continue without the bot
     
     async def stop(self):
         """Stop the bot service and cleanup."""

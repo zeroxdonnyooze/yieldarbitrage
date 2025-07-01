@@ -52,6 +52,7 @@ def liveness_probe() -> Dict[str, Any]:
     }
 
 
+@router.get("/health/ready")
 def readiness_probe() -> Dict[str, Any]:
     """Kubernetes readiness probe."""
     return {
@@ -60,6 +61,7 @@ def readiness_probe() -> Dict[str, Any]:
     }
 
 
+@router.get("/health/startup")
 def startup_probe() -> Dict[str, Any]:
     """Kubernetes startup probe."""
     return {
