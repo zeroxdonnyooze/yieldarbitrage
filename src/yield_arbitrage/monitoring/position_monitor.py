@@ -1025,6 +1025,53 @@ class PrincipalYieldPositionMonitor(PositionMonitorBase):
             return AlertSeverity.WARNING
         else:
             return AlertSeverity.INFO
+    
+    async def generate_alerts(self, position, health) -> List[PositionAlert]:
+        """Generate alerts for principal/yield token positions based on health assessment."""
+        alerts = []
+        
+        try:
+            # Use existing check_position_health method which already generates alerts
+            position_alerts = await self.check_position_health(position)
+            alerts.extend(position_alerts)
+            
+            # Add health-based alerts if health data is available
+            if health and hasattr(health, 'risk_level'):
+                if health.risk_level == RiskLevel.CRITICAL:
+                    alerts.append(PositionAlert(
+                        position_id=position.position_id,
+                        position_type=self.position_type,
+                        alert_type="health_critical",
+                        severity=AlertSeverity.CRITICAL,
+                        message="Position health is critical",
+                        details={"health_status": health.risk_level},
+                        recommended_action="Immediate attention required"
+                    ))
+                elif health.risk_level == RiskLevel.HIGH:
+                    alerts.append(PositionAlert(
+                        position_id=position.position_id,
+                        position_type=self.position_type,
+                        alert_type="health_high_risk",
+                        severity=AlertSeverity.WARNING,
+                        message="Position at high risk",
+                        details={"health_status": health.risk_level},
+                        recommended_action="Monitor closely"
+                    ))
+            
+        except Exception as e:
+            logger.error(f"Error generating alerts for position {position.position_id}: {e}")
+            # Generate error alert
+            alerts.append(PositionAlert(
+                position_id=position.position_id,
+                position_type=self.position_type,
+                alert_type="monitoring_error",
+                severity=AlertSeverity.ERROR,
+                message=f"Failed to generate position alerts: {str(e)}",
+                details={"error": str(e)},
+                recommended_action="Check position monitoring system"
+            ))
+        
+        return alerts
 
 
 class PositionMonitor:
