@@ -677,9 +677,8 @@ class PrincipalYieldPositionMonitor(PositionMonitorBase):
     - Principal vs yield token exposure imbalances
     """
     
-    def __init__(self, config: MonitoringConfig, asset_oracle: AssetOracleBase):
-        super().__init__(config, asset_oracle)
-        self.position_type = PositionType.PRINCIPAL_YIELD
+    def __init__(self, asset_oracle: AssetOracleBase, config: MonitoringConfig):
+        super().__init__(PositionType.PRINCIPAL_YIELD, asset_oracle, config)
     
     async def check_position_health(self, position) -> List[PositionAlert]:
         """Check health of pT/yT positions with focus on maturity and yield risks."""
@@ -1106,7 +1105,7 @@ class PositionMonitor:
             PositionType.YIELD_FARMING: YieldFarmingPositionMonitor(asset_oracle, self.config),
             PositionType.LENDING: LendingPositionMonitor(asset_oracle, self.config),
             PositionType.BORROWING: BorrowingPositionMonitor(asset_oracle, self.config),
-            PositionType.PRINCIPAL_YIELD: PrincipalYieldPositionMonitor(self.config, asset_oracle),
+            PositionType.PRINCIPAL_YIELD: PrincipalYieldPositionMonitor(asset_oracle, self.config),
         }
         
         # Monitoring state
