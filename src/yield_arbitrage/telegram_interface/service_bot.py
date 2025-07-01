@@ -96,34 +96,43 @@ class TelegramBotService:
             from .adapters import MockSimulator
             self.components['simulator'] = MockSimulator()
         
-        # Position Monitor
+        # Initialize monitoring components using factory
         try:
-            from yield_arbitrage.monitoring.position_monitor import PositionMonitor
-            self.components['position_monitor'] = PositionMonitor()
-            logger.info("✅ Position monitor initialized")
-        except ImportError:
-            logger.warning("Position monitor not available")
-            from .adapters import DatabasePositionMonitor
+            from yield_arbitrage.monitoring.factory import get_monitoring_components
+            monitoring_components = await get_monitoring_components()
+            
+            # Add monitoring components to our components dict
+            if monitoring_components['position_monitor']:
+                self.components['position_monitor'] = monitoring_components['position_monitor']
+                logger.info("✅ Position monitor initialized via factory")
+            else:
+                logger.warning("Position monitor not available from factory")
+                from .adapters import DatabasePositionMonitor
+                self.components['position_monitor'] = DatabasePositionMonitor()
+            
+            if monitoring_components['delta_tracker']:
+                self.components['delta_tracker'] = monitoring_components['delta_tracker']
+                logger.info("✅ Delta tracker initialized via factory")
+            else:
+                logger.warning("Delta tracker not available from factory")
+                from .adapters import DatabaseDeltaTracker
+                self.components['delta_tracker'] = DatabaseDeltaTracker()
+            
+            if monitoring_components['execution_logger']:
+                self.components['execution_logger'] = monitoring_components['execution_logger']
+                logger.info("✅ Execution logger initialized via factory")
+            else:
+                logger.warning("Execution logger not available from factory")
+                from .adapters import DatabaseExecutionLogger
+                self.components['execution_logger'] = DatabaseExecutionLogger()
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize monitoring components via factory: {e}")
+            # Fallback to adapter implementations
+            logger.warning("Using fallback adapter implementations")
+            from .adapters import DatabasePositionMonitor, DatabaseDeltaTracker, DatabaseExecutionLogger
             self.components['position_monitor'] = DatabasePositionMonitor()
-        
-        # Delta Tracker
-        try:
-            from yield_arbitrage.monitoring.delta_tracker import DeltaTracker
-            self.components['delta_tracker'] = DeltaTracker()
-            logger.info("✅ Delta tracker initialized")
-        except ImportError:
-            logger.warning("Delta tracker not available")
-            from .adapters import DatabaseDeltaTracker
             self.components['delta_tracker'] = DatabaseDeltaTracker()
-        
-        # Execution Logger
-        try:
-            from yield_arbitrage.monitoring.execution_logger import ExecutionLogger
-            self.components['execution_logger'] = ExecutionLogger()
-            logger.info("✅ Execution logger initialized")
-        except ImportError:
-            logger.warning("Execution logger not available")
-            from .adapters import DatabaseExecutionLogger
             self.components['execution_logger'] = DatabaseExecutionLogger()
         
         logger.info(f"✅ {len(self.components)} system components initialized")
